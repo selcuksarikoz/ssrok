@@ -293,8 +293,8 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	sess := &session.Session{
 		UUID:         tunnelUUID,
 		Port:         req.Port,
-		PasswordHash: session.Hash(req.Password),
-		TokenHash:    session.Hash(token),
+		PasswordHash: utils.HashSHA256(req.Password),
+		TokenHash:    utils.HashSHA256(token),
 		RateLimit:    req.RateLimit,
 		UseTLS:       req.UseTLS,
 		CreatedAt:    time.Now(),
@@ -645,7 +645,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	buf.WriteString("\r\n")
 
 	buf.WriteString("X-Forwarded-Proto: ")
-	buf.WriteString(getScheme(r))
+	buf.WriteString(utils.GetScheme(r))
 	buf.WriteString("\r\n")
 
 	if r.ContentLength > 0 {
@@ -708,16 +708,6 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 	tunnel.PutBuffer(copyBuf)
 	tunnel.PutBufioReader(br)
-}
-
-func getScheme(r *http.Request) string {
-	if r.TLS != nil {
-		return "https"
-	}
-	if scheme := r.Header.Get("X-Forwarded-Proto"); scheme != "" {
-		return scheme
-	}
-	return "http"
 }
 
 func cleanup() {

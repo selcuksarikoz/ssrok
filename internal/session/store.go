@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"ssrok/internal/constants"
+	"ssrok/internal/utils"
 )
 
 type Session struct {
@@ -58,8 +59,7 @@ func (s *Session) CheckRateLimit(ip string) bool {
 }
 
 func (s *Session) VerifyToken(token string) bool {
-	hash := sha256.Sum256([]byte(token))
-	providedHash := hex.EncodeToString(hash[:])
+	providedHash := utils.HashSHA256(token)
 	return subtle.ConstantTimeCompare([]byte(providedHash), []byte(s.TokenHash)) == 1
 }
 
@@ -67,8 +67,7 @@ func (s *Session) VerifyPassword(password string) bool {
 	if s.PasswordHash == "" {
 		return true
 	}
-	hash := sha256.Sum256([]byte(password))
-	providedHash := hex.EncodeToString(hash[:])
+	providedHash := utils.HashSHA256(password)
 	return subtle.ConstantTimeCompare([]byte(providedHash), []byte(s.PasswordHash)) == 1
 }
 
@@ -132,11 +131,6 @@ func (st *Store) cleanupLoop() {
 			return true
 		})
 	}
-}
-
-func Hash(input string) string {
-	hash := sha256.Sum256([]byte(input))
-	return hex.EncodeToString(hash[:])
 }
 
 var (

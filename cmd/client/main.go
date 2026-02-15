@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -261,7 +260,7 @@ func main() {
 	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, localLabel, colorReset, localValue, colorGreen, colorReset)
 
 	expiresLabel := " ⏱  Expires    "
-	durationDisplay := formatDuration(resp.ExpiresIn)
+	durationDisplay := utils.FormatDuration(resp.ExpiresIn)
 	expiresStr := fmt.Sprintf("%s (%s)", expiresAt, durationDisplay)
 	expiresValue := pad(expiresStr, boxWidth-2-len(expiresLabel)-1) + " "
 	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, expiresLabel, colorReset, expiresValue, colorGreen, colorReset)
@@ -310,7 +309,7 @@ func main() {
 	}
 	tunnelUUID := resp.UUID
 	if tunnelUUID == "" {
-		tunnelUUID = extractUUID(resp.URL)
+		tunnelUUID = utils.ExtractUUID(resp.URL)
 	}
 	wsURL = strings.Replace(wsURL, "/"+tunnelUUID, "/ws/"+tunnelUUID, 1)
 
@@ -390,35 +389,4 @@ func registerTunnel(serverURL string, config protocol.ConfigRequest, skipTLSVeri
 	}
 
 	return &result, nil
-}
-
-func extractUUID(tunnelURL string) string {
-	u, err := url.Parse(tunnelURL)
-	if err != nil {
-		return ""
-	}
-	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) > 0 {
-		return parts[0]
-	}
-	return ""
-}
-
-func formatDuration(d time.Duration) string {
-	hours := int(d.Hours())
-	minutes := int(d.Minutes()) % 60
-
-	if hours == 0 {
-		return fmt.Sprintf("%d minutes", minutes)
-	}
-	if minutes == 0 {
-		if hours == 1 {
-			return "1 hour"
-		}
-		return fmt.Sprintf("%d hours", hours)
-	}
-	if hours == 1 {
-		return fmt.Sprintf("1 hour %d minutes", minutes)
-	}
-	return fmt.Sprintf("%d hours %d minutes", hours, minutes)
 }
