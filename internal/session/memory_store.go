@@ -103,6 +103,15 @@ func (st *MemoryStore) Get(uuid string) (*Session, bool) {
 }
 
 func (st *MemoryStore) Delete(uuid string) {
+	val, ok := st.sessions.Load(uuid)
+	if ok {
+		session := val.(*Session)
+		if session.Conn != nil {
+			session.Conn.Close()
+		}
+		session.RequestCount = nil
+		session.LastRequest = nil
+	}
 	st.sessions.Delete(uuid)
 }
 
