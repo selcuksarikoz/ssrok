@@ -1,6 +1,6 @@
 .PHONY: all build build-client build-server clean release test
 
-VERSION := 0.1.0
+VERSION := 0.1.1
 LDFLAGS := -ldflags "-X ssrok/internal/constants.Version=$(VERSION) -s -w"
 
 all: build
