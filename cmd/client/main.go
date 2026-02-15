@@ -139,6 +139,11 @@ func main() {
 
 	magicURL := fmt.Sprintf("%s?token=%s", resp.URL, resp.Token)
 
+	localProto := "http"
+	if useTLS {
+		localProto = "https"
+	}
+
 	fmt.Println()
 	fmt.Println(colorGreen + "╔══════════════════════════════════════════════════════════╗" + colorReset)
 	fmt.Println(colorGreen + "║" + colorBold + "                    🚀 Tunnel Active                      " + colorReset + colorGreen + "║" + colorReset)
@@ -147,7 +152,7 @@ func main() {
 	fmt.Println(colorGreen + "╠══════════════════════════════════════════════════════════╣" + colorReset)
 	fmt.Printf(colorGreen+"║"+colorReset+"  "+colorBold+"Raw URL:"+colorReset+"   "+colorYellow+"%-45s"+colorGreen+"║\n"+colorReset, resp.URL)
 	fmt.Println(colorGreen + "╠══════════════════════════════════════════════════════════╣" + colorReset)
-	fmt.Printf(colorGreen+"║"+colorReset+"  "+colorBold+"Local:"+colorReset+"     http://localhost:%-28d"+colorGreen+"║\n"+colorReset, port)
+	fmt.Printf(colorGreen+"║"+colorReset+"  "+colorBold+"Local:"+colorReset+"     %s://localhost:%-25d"+colorGreen+"║\n"+colorReset, localProto, port)
 	fmt.Println(colorGreen + "╠══════════════════════════════════════════════════════════╣" + colorReset)
 	fmt.Printf(colorGreen+"║"+colorReset+"  "+colorBold+"Expires:"+colorReset+"   %-45s"+colorGreen+"║\n"+colorReset, time.Now().Add(resp.ExpiresIn).Format(constants.TimeFormatShort)+" ("+constants.DurationHour+")")
 	fmt.Println(colorGreen + "╚══════════════════════════════════════════════════════════╝" + colorReset)
@@ -159,16 +164,16 @@ func main() {
 	fmt.Println()
 
 	wsURL := resp.URL
-	// Use the same protocol choice as user selected for WebSocket
-	if useHTTPS {
-		// Force wss:// for HTTPS servers
+	// Detect protocol from server response URL, not from serverURL env var
+	if strings.HasPrefix(wsURL, "https://") || strings.HasPrefix(wsURL, "wss://") {
+		// Server is HTTPS, ensure WebSocket is wss://
 		if strings.HasPrefix(wsURL, "http://") {
 			wsURL = strings.Replace(wsURL, "http://", "wss://", 1)
 		} else if !strings.HasPrefix(wsURL, "wss://") {
 			wsURL = "wss://" + strings.TrimPrefix(wsURL, "https://")
 		}
 	} else {
-		// Force ws:// for HTTP servers
+		// Server is HTTP, ensure WebSocket is ws://
 		if strings.HasPrefix(wsURL, "https://") {
 			wsURL = strings.Replace(wsURL, "https://", "ws://", 1)
 		} else if !strings.HasPrefix(wsURL, "ws://") {
@@ -189,7 +194,7 @@ func main() {
 	}
 
 	fmt.Println(colorDim + "   Establishing WebSocket connection..." + colorReset)
-	t, err := tunnel.ConnectClient(wsURL, port, tunnelUUID, skipTLSVerify)
+	t, err := tunnel.ConnectClient(wsURL, port, tunnelUUID, skipTLSVerify, useTLS)
 	if err != nil {
 		fmt.Println()
 		fmt.Println(colorRed + "   ✗ Tunnel connection failed: " + err.Error() + colorReset)
@@ -198,6 +203,14 @@ func main() {
 	}
 	fmt.Println(colorGreen + "   ✓ WebSocket tunnel active" + colorReset)
 	fmt.Println()
+
+	// Start processing streams from the server
+	go func() {
+		if err := t.Process(); err != nil {
+			fmt.Printf("\n%s   ✗ Connection lost: %v%s\n", colorRed, err, colorReset)
+			os.Exit(1)
+		}
+	}()
 
 	// Display log file path
 	fmt.Println(colorDim + "   📝 Logs: " + t.GetLogPath() + colorReset)

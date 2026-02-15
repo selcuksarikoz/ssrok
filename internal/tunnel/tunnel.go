@@ -75,6 +75,25 @@ func (t *Tunnel) HandleWebSocket() error {
 	}
 }
 
+// Process starts accepting and handling streams on the tunnel session
+func (t *Tunnel) Process() error {
+	if t.Session == nil {
+		return fmt.Errorf("tunnel session not initialized")
+	}
+
+	for {
+		stream, err := t.Session.AcceptStream()
+		if err != nil {
+			if t.isClosed {
+				return nil
+			}
+			return fmt.Errorf("failed to accept stream: %w", err)
+		}
+
+		go t.handleStream(stream)
+	}
+}
+
 func (t *Tunnel) handleStream(stream net.Conn) {
 	defer stream.Close()
 
@@ -244,7 +263,7 @@ func (w *wsConnWrapper) SetWriteDeadline(t time.Time) error {
 }
 
 // ConnectClient establishes client-side tunnel connection
-func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify bool) (*Tunnel, error) {
+func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify bool, useTLS bool) (*Tunnel, error) {
 	log, err := logger.NewLogger(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
@@ -303,6 +322,7 @@ func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify 
 		WSConn:    conn,
 		Session:   session,
 		LocalPort: localPort,
+		UseTLS:    useTLS,
 		log:       log,
 	}
 

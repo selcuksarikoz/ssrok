@@ -35,6 +35,7 @@ var (
 	tunnels        = make(map[string]*tunnel.Tunnel)
 	tunnelMu       = &sync.RWMutex{}
 	host           string
+	serverUseTLS   bool
 	templates      *template.Template
 	connLimiter    *security.ConnectionLimiter
 	bruteProtector *security.BruteForceProtector
@@ -142,15 +143,12 @@ func main() {
 	log.Printf("🚀 ssrok server starting on :%s", port)
 
 	useTLS := false
-	isLocalhost := strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") || host == "0.0.0.0" || host == ""
-
-	if !isLocalhost {
-		if _, err := os.Stat(certFile); err == nil {
-			if _, err := os.Stat(keyFile); err == nil {
-				useTLS = true
-			}
+	if _, err := os.Stat(certFile); err == nil {
+		if _, err := os.Stat(keyFile); err == nil {
+			useTLS = true
 		}
 	}
+	serverUseTLS = useTLS
 
 	var server *http.Server
 
@@ -237,8 +235,11 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	store.Save(sess)
 
-	// Detect scheme from request or X-Forwarded-Proto header
-	scheme := getScheme(r)
+	// Use server's actual TLS setting, not request's
+	scheme := "http"
+	if serverUseTLS {
+		scheme = "https"
+	}
 
 	// Build URL with detected scheme
 	var tunnelURL string
