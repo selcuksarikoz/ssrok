@@ -142,9 +142,13 @@ func main() {
 	log.Printf("🚀 ssrok server starting on :%s", port)
 
 	useTLS := false
-	if _, err := os.Stat(certFile); err == nil {
-		if _, err := os.Stat(keyFile); err == nil {
-			useTLS = true
+	isLocalhost := strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") || host == "0.0.0.0" || host == ""
+
+	if !isLocalhost {
+		if _, err := os.Stat(certFile); err == nil {
+			if _, err := os.Stat(keyFile); err == nil {
+				useTLS = true
+			}
 		}
 	}
 
