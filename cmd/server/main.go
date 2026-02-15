@@ -134,7 +134,7 @@ func main() {
 	mux.HandleFunc(constants.EndpointWebSocket, handleWebSocket)
 	mux.HandleFunc(constants.EndpointRoot, handleTunnel)
 
-	handler := gzipMiddleware(mux)
+	handler := mux
 
 	port := utils.GetEnv("PORT", constants.DefaultPort)
 	certFile := utils.GetEnv("SSROK_CERT_FILE", "certs/server.crt")
@@ -345,8 +345,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	delete(tunnels, tunnelUUID)
 	tunnelMu.Unlock()
 
-	sess.Conn = nil
-	sess.TunnelActive = false
+	// Clean up session from store to free memory immediately
+	store.Delete(tunnelUUID)
 
 	log.Printf("🔌 Tunnel disconnected: %s", tunnelUUID)
 }
@@ -531,11 +531,14 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 }
 
 func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path string) {
+	log.Printf("Proxy: request received for path: %s", path)
 	stream, err := t.Session.OpenStream()
 	if err != nil {
+		log.Printf("Proxy: failed to open stream: %v", err)
 		http.Error(w, "Failed to open tunnel stream", http.StatusServiceUnavailable)
 		return
 	}
+	log.Printf("Proxy: stream opened successfully (id: %d)", stream.StreamID())
 	defer stream.Close()
 
 	if path == "" {
@@ -550,9 +553,23 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	var buf bytes.Buffer
 	buf.WriteString(reqLine)
 
+	// Copy headers, excluding hop-by-hop headers
+	hopByHop := map[string]bool{
+		"Connection":          true,
+		"Keep-Alive":          true,
+		"Proxy-Authenticate":  true,
+		"Proxy-Authorization": true,
+		"Te":                  true,
+		"Trailers":            true,
+		"Transfer-Encoding":   true,
+		"Upgrade":             true,
+	}
+
 	for key, values := range r.Header {
-		for _, value := range values {
-			buf.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
+		if !hopByHop[key] {
+			for _, value := range values {
+				buf.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
+			}
 		}
 	}
 
@@ -567,7 +584,9 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 
 	buf.WriteString("\r\n")
 
+	log.Printf("Proxy: writing request headers (%d bytes)", buf.Len())
 	if _, err := stream.Write(buf.Bytes()); err != nil {
+		log.Printf("Proxy: failed to write headers: %v", err)
 		http.Error(w, "Failed to write request", http.StatusServiceUnavailable)
 		return
 	}
@@ -579,19 +598,21 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		r.Body.Close()
 	}
 
+	log.Printf("Proxy: waiting for response...")
 	resp, err := http.ReadResponse(bufio.NewReader(stream), r)
 	if err != nil {
-		// If we can't read a valid HTTP response, it might be a raw stream or connection error
-		log.Printf("Failed to read response from tunnel: %v", err)
+		log.Printf("Proxy: Failed to read response from tunnel: %v", err)
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
+	log.Printf("Proxy: response received: %s", resp.Status)
 
-	// Copy headers
 	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(key, value)
+		if !hopByHop[key] {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
@@ -599,7 +620,8 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	// Stream the body
 	copyBuf := tunnel.GetBuffer()
 	defer tunnel.PutBuffer(copyBuf)
-	io.CopyBuffer(w, resp.Body, copyBuf)
+	n, err := io.CopyBuffer(w, resp.Body, copyBuf)
+	log.Printf("Proxy: response body streamed (%d bytes)", n)
 }
 
 func getScheme(r *http.Request) string {

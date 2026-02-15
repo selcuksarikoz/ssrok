@@ -100,10 +100,17 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	var localConn net.Conn
 	var err error
 
+	if t.log != nil {
+		t.log.LogEvent("Forwarding request", t.LocalPort)
+		// Also print to CLI for user visibility
+		fmt.Printf(constants.ColorCyan+"   → %s Forwarding request to localhost:%d"+constants.ColorReset+"\n",
+			time.Now().Format("15:04:05"), t.LocalPort)
+	}
+
 	if t.UseTLS {
-		localConn, err = tls.Dial("tcp", fmt.Sprintf("localhost:%d", t.LocalPort), &tls.Config{InsecureSkipVerify: true})
+		localConn, err = tls.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", t.LocalPort), &tls.Config{InsecureSkipVerify: true})
 	} else {
-		localConn, err = net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", t.LocalPort), constants.DialTimeout)
+		localConn, err = net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", t.LocalPort), constants.DialTimeout)
 	}
 	if err != nil {
 		stream.Write([]byte(fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to local server: %v", err)))
