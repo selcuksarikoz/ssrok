@@ -21,25 +21,6 @@ brew tap selcuksarikoz/ssrok
 brew install ssrok
 ```
 
-### Linux
-
-```bash
-# AMD64
-curl -L https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-linux-amd64 -o ssrok
-chmod +x ssrok
-sudo mv ssrok /usr/local/bin/
-```
-
-### Windows
-
-Download `ssrok-windows-amd64.exe` from [Releases](https://github.com/selcuksarikoz/ssrok/releases/latest) and add to your PATH.
-
-```powershell
-# PowerShell
-Invoke-WebRequest -Uri "https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-windows-amd64.exe" -OutFile "ssrok.exe"
-Move-Item ssrok.exe C:\Windows\System32\
-```
-
 ### Build from Source
 
 ```bash

@@ -1,6 +1,6 @@
 .PHONY: all build build-client build-server clean release test
 
-VERSION ?= 1.0.0
+VERSION ?= 1.0.10
 LDFLAGS := -ldflags "-X main.Version=$(VERSION) -s -w"
 
 all: build
