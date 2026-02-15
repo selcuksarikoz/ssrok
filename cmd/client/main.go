@@ -101,7 +101,11 @@ func main() {
 
 	// Auto-detect HTTPS and skip TLS verify for localhost
 	useHTTPS := strings.HasPrefix(serverURL, "https://")
-	skipTLSVerify := useHTTPS && (strings.Contains(serverURL, "localhost") || strings.Contains(serverURL, "127.0.0.1"))
+	skipTLSVerify := useHTTPS && (strings.Contains(serverURL, "localhost") ||
+		strings.Contains(serverURL, "127.0.0.1") ||
+		strings.Contains(serverURL, ".onrender.com") ||
+		strings.Contains(serverURL, ".railway.app") ||
+		strings.Contains(serverURL, ".fly.io"))
 
 	printBanner()
 

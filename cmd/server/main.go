@@ -178,8 +178,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, Upgrade")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Upgrade")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 
 		if r.Method == "OPTIONS" {
@@ -377,10 +378,8 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	log.Printf("🔔 Register: New tunnel created: %s", tunnelUUID)
 	store.Save(sess)
 
-	scheme := "http"
-	if serverUseTLS {
-		scheme = "https"
-	}
+	scheme := utils.GetScheme(r)
+	log.Printf("🌐 Detected scheme: %s (TLS: %v, X-Forwarded-Proto: %s)", scheme, r.TLS != nil, r.Header.Get("X-Forwarded-Proto"))
 
 	// Build host with port for URL
 	urlHost := host
@@ -406,6 +405,8 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	clientIP := security.GetClientIP(r)
+
+	log.Printf("🔌 WebSocket request received: %s from %s", r.URL.Path, r.Header.Get("Upgrade"))
 
 	if !connLimiter.TryConnect(clientIP) {
 		if auditLogger != nil {
@@ -445,9 +446,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("🔌 WebSocket: Upgrading connection for tunnel: %s", tunnelUUID)
 	conn, err := websocket.Upgrade(w, r, nil, constants.WSBufferSize, constants.WSBufferSize)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		log.Printf("❌ WebSocket upgrade error: %v", err)
 		return
 	}
 

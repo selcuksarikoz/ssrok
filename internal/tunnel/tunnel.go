@@ -286,18 +286,20 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 		ReadBufferSize:    constants.WSBufferSize,
 		WriteBufferSize:   constants.WSBufferSize,
 		EnableCompression: false,
-		HandshakeTimeout:  10 * time.Second,
+		HandshakeTimeout:  30 * time.Second,
 	}
 
 	if skipTLSVerify {
+		log.LogEvent(fmt.Sprintf("TLS verify skip enabled for: %s", wsURL), localPort)
 		dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	conn, _, err := dialer.Dial(wsURL, nil)
+	log.LogEvent(fmt.Sprintf("Dialing WebSocket..."), localPort)
+	conn, resp, err := dialer.Dial(wsURL, nil)
 	if err != nil {
 		log.LogError("client->server", fmt.Errorf("failed to connect to server: %w", err), "", localPort)
 		log.Close()
-		return nil, fmt.Errorf("failed to connect to server: %w", err)
+		return nil, fmt.Errorf("failed to connect to server: %w (resp: %+v)", err, resp)
 	}
 
 	remoteAddr := conn.RemoteAddr().String()
