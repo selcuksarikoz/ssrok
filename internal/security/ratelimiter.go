@@ -3,19 +3,18 @@ package security
 import (
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
-// ConnectionLimiter tracks connections per IP
 type ConnectionLimiter struct {
 	mu          sync.RWMutex
 	connections map[string]int
 	maxConn     int
 }
 
-// NewConnectionLimiter creates a new limiter
 func NewConnectionLimiter(maxConn int) *ConnectionLimiter {
 	return &ConnectionLimiter{
 		connections: make(map[string]int),
@@ -23,7 +22,6 @@ func NewConnectionLimiter(maxConn int) *ConnectionLimiter {
 	}
 }
 
-// TryConnect attempts to register a new connection
 func (cl *ConnectionLimiter) TryConnect(ip string) bool {
 	cl.mu.Lock()
 	defer cl.mu.Unlock()
@@ -35,7 +33,6 @@ func (cl *ConnectionLimiter) TryConnect(ip string) bool {
 	return true
 }
 
-// Disconnect decrements connection count
 func (cl *ConnectionLimiter) Disconnect(ip string) {
 	cl.mu.Lock()
 	defer cl.mu.Unlock()
@@ -48,23 +45,66 @@ func (cl *ConnectionLimiter) Disconnect(ip string) {
 	}
 }
 
-// GetClientIP extracts client IP from request
-func GetClientIP(r *http.Request) string {
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		return strings.Split(xff, ",")[0]
-	}
+var (
+	trustedProxies []*net.IPNet
+	proxyOnce      sync.Once
+)
 
-	xri := r.Header.Get("X-Real-Ip")
-	if xri != "" {
-		return xri
-	}
-
-	host, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return host
+func initTrustedProxies() {
+	proxyOnce.Do(func() {
+		defaultCIDRs := []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+		if env := os.Getenv("SSROK_TRUSTED_PROXIES"); env != "" {
+			defaultCIDRs = strings.Split(env, ",")
+		}
+		for _, cidr := range defaultCIDRs {
+			cidr = strings.TrimSpace(cidr)
+			_, network, err := net.ParseCIDR(cidr)
+			if err == nil {
+				trustedProxies = append(trustedProxies, network)
+			}
+		}
+	})
 }
 
-// BruteForceProtector prevents password brute force
+func isTrustedProxy(ip string) bool {
+	initTrustedProxies()
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, network := range trustedProxies {
+		if network.Contains(parsed) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetClientIP extracts client IP, only trusting proxy headers from trusted sources.
+func GetClientIP(r *http.Request) string {
+	directIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if directIP == "" {
+		directIP = r.RemoteAddr
+	}
+
+	if isTrustedProxy(directIP) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			clientIP := strings.TrimSpace(strings.Split(xff, ",")[0])
+			if net.ParseIP(clientIP) != nil {
+				return clientIP
+			}
+		}
+		if xri := r.Header.Get("X-Real-Ip"); xri != "" {
+			xri = strings.TrimSpace(xri)
+			if net.ParseIP(xri) != nil {
+				return xri
+			}
+		}
+	}
+
+	return directIP
+}
+
 type BruteForceProtector struct {
 	mu            sync.RWMutex
 	attempts      map[string]*ipAttempts
@@ -77,7 +117,6 @@ type ipAttempts struct {
 	blockedAt *time.Time
 }
 
-// NewBruteForceProtector creates a new protector
 func NewBruteForceProtector(maxAttempts int, blockDuration time.Duration) *BruteForceProtector {
 	bf := &BruteForceProtector{
 		attempts:      make(map[string]*ipAttempts),
@@ -88,7 +127,6 @@ func NewBruteForceProtector(maxAttempts int, blockDuration time.Duration) *Brute
 	return bf
 }
 
-// Check returns true if IP is allowed to attempt
 func (bf *BruteForceProtector) Check(ip string) bool {
 	bf.mu.Lock()
 	defer bf.mu.Unlock()
@@ -102,7 +140,6 @@ func (bf *BruteForceProtector) Check(ip string) bool {
 		if time.Since(*attempts.blockedAt) < bf.blockDuration {
 			return false
 		}
-		// Unblock
 		attempts.count = 0
 		attempts.blockedAt = nil
 	}
@@ -110,7 +147,6 @@ func (bf *BruteForceProtector) Check(ip string) bool {
 	return attempts.count < bf.maxAttempts
 }
 
-// RecordFailure records a failed attempt
 func (bf *BruteForceProtector) RecordFailure(ip string) {
 	bf.mu.Lock()
 	defer bf.mu.Unlock()
@@ -128,7 +164,6 @@ func (bf *BruteForceProtector) RecordFailure(ip string) {
 	}
 }
 
-// RecordSuccess resets attempts on success
 func (bf *BruteForceProtector) RecordSuccess(ip string) {
 	bf.mu.Lock()
 	defer bf.mu.Unlock()

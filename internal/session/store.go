@@ -1,7 +1,10 @@
 package session
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"sync"
 	"time"
@@ -28,12 +31,10 @@ type Session struct {
 	mu           sync.RWMutex
 }
 
-// IsExpired returns true if session has expired
 func (s *Session) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
 }
 
-// CheckRateLimit returns true if IP is within rate limit
 func (s *Session) CheckRateLimit(ip string) bool {
 	if s.RateLimit == constants.UnlimitedRateLimit {
 		return true
@@ -55,22 +56,21 @@ func (s *Session) CheckRateLimit(ip string) bool {
 	return s.RequestCount[ip] <= s.RateLimit
 }
 
-// VerifyToken returns true if token matches
 func (s *Session) VerifyToken(token string) bool {
 	hash := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(hash[:]) == s.TokenHash
+	providedHash := hex.EncodeToString(hash[:])
+	return subtle.ConstantTimeCompare([]byte(providedHash), []byte(s.TokenHash)) == 1
 }
 
-// VerifyPassword returns true if password matches (or no password set)
 func (s *Session) VerifyPassword(password string) bool {
 	if s.PasswordHash == "" {
 		return true
 	}
 	hash := sha256.Sum256([]byte(password))
-	return hex.EncodeToString(hash[:]) == s.PasswordHash
+	providedHash := hex.EncodeToString(hash[:])
+	return subtle.ConstantTimeCompare([]byte(providedHash), []byte(s.PasswordHash)) == 1
 }
 
-// HasPassword returns true if session has password protection
 func (s *Session) HasPassword() bool {
 	return s.PasswordHash != ""
 }
@@ -79,7 +79,6 @@ type Store struct {
 	sessions sync.Map
 }
 
-// NewStore creates a new session store with cleanup goroutine
 func NewStore() *Store {
 	store := &Store{}
 	go store.cleanupLoop()
@@ -90,7 +89,6 @@ func (st *Store) Save(session *Session) {
 	st.sessions.Store(session.UUID, session)
 }
 
-// Get retrieves session by UUID, returns nil if expired
 func (st *Store) Get(uuid string) (*Session, bool) {
 	val, ok := st.sessions.Load(uuid)
 	if !ok {
@@ -126,8 +124,91 @@ func (st *Store) cleanupLoop() {
 	}
 }
 
-// Hash returns SHA256 hash of input
 func Hash(input string) string {
 	hash := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(hash[:])
+}
+
+var (
+	cookieSigningKey []byte
+	signingKeyOnce   sync.Once
+)
+
+func getCookieSigningKey() []byte {
+	signingKeyOnce.Do(func() {
+		cookieSigningKey = make([]byte, 32)
+		if _, err := rand.Read(cookieSigningKey); err != nil {
+			panic("failed to generate cookie signing key: " + err.Error())
+		}
+	})
+	return cookieSigningKey
+}
+
+func SignCookieValue(uuid string) string {
+	mac := hmac.New(sha256.New, getCookieSigningKey())
+	mac.Write([]byte(uuid))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	return uuid + ":" + sig
+}
+
+func VerifyCookieValue(cookieValue string) (string, bool) {
+	parts := splitCookieValue(cookieValue)
+	if parts == nil {
+		return "", false
+	}
+	uuid := parts[0]
+	providedSig := parts[1]
+
+	mac := hmac.New(sha256.New, getCookieSigningKey())
+	mac.Write([]byte(uuid))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+	if subtle.ConstantTimeCompare([]byte(providedSig), []byte(expectedSig)) != 1 {
+		return "", false
+	}
+	return uuid, true
+}
+
+func splitCookieValue(value string) []string {
+	idx := -1
+	for i := len(value) - 1; i >= 0; i-- {
+		if value[i] == ':' {
+			idx = i
+			break
+		}
+	}
+	if idx <= 0 || idx >= len(value)-1 {
+		return nil
+	}
+	return []string{value[:idx], value[idx+1:]}
+}
+
+func GenerateCSRFToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic("failed to generate CSRF token: " + err.Error())
+	}
+	return hex.EncodeToString(b)
+}
+
+func SignCSRFToken(token string) string {
+	mac := hmac.New(sha256.New, getCookieSigningKey())
+	mac.Write([]byte(token))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	return token + ":" + sig
+}
+
+func VerifyCSRFToken(signedToken string) bool {
+	parts := splitCookieValue(signedToken)
+	if parts == nil {
+		return false
+	}
+	token := parts[0]
+	providedSig := parts[1]
+
+	mac := hmac.New(sha256.New, getCookieSigningKey())
+	mac.Write([]byte(token))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+	return subtle.ConstantTimeCompare([]byte(providedSig), []byte(expectedSig)) == 1
 }

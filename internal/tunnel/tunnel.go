@@ -20,7 +20,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:       func(r *http.Request) bool { return true },
 	ReadBufferSize:    constants.WSBufferSize,
 	WriteBufferSize:   constants.WSBufferSize,
-	EnableCompression: false, // Disable compression for speed (CPU trade-off)
+	EnableCompression: false,
 }
 
 type Tunnel struct {
@@ -32,30 +32,32 @@ type Tunnel struct {
 	mu        sync.RWMutex
 	isClosed  bool
 	log       *logger.Logger
+	localAddr string
 }
 
-// NewTunnel creates a new tunnel instance
 func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool) *Tunnel {
 	return &Tunnel{
 		UUID:      uuid,
 		WSConn:    wsConn,
 		LocalPort: localPort,
 		UseTLS:    useTLS,
+		localAddr: fmt.Sprintf("127.0.0.1:%d", localPort),
 	}
 }
 
-// HandleWebSocket establishes yamux session over WebSocket
+func yamuxConfig() *yamux.Config {
+	config := yamux.DefaultConfig()
+	config.MaxStreamWindowSize = 4 * 1024 * 1024
+	config.AcceptBacklog = 512
+	config.EnableKeepAlive = true
+	config.KeepAliveInterval = 30 * time.Second
+	return config
+}
+
 func (t *Tunnel) HandleWebSocket() error {
 	wsWrapper := &wsConnWrapper{conn: t.WSConn}
 
-	// Optimized yamux config for high throughput
-	config := yamux.DefaultConfig()
-	config.MaxStreamWindowSize = 1024 * 1024 // 1MB window for fast transfers
-	config.AcceptBacklog = 256               // Higher backlog for concurrent streams
-	config.EnableKeepAlive = true
-	config.KeepAliveInterval = 30 * time.Second
-
-	session, err := yamux.Server(wsWrapper, config)
+	session, err := yamux.Server(wsWrapper, yamuxConfig())
 	if err != nil {
 		return fmt.Errorf("failed to create yamux session: %w", err)
 	}
@@ -75,7 +77,6 @@ func (t *Tunnel) HandleWebSocket() error {
 	}
 }
 
-// Process starts accepting and handling streams on the tunnel session
 func (t *Tunnel) Process() error {
 	if t.Session == nil {
 		return fmt.Errorf("tunnel session not initialized")
@@ -101,27 +102,24 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	var err error
 
 	if t.log != nil {
-		// Also print to CLI for user visibility - disabled per user request
 		t.log.LogEvent("Forwarding request", t.LocalPort)
 	}
 
 	if t.UseTLS {
-		localConn, err = tls.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", t.LocalPort), &tls.Config{InsecureSkipVerify: true})
+		localConn, err = tls.Dial("tcp", t.localAddr, &tls.Config{InsecureSkipVerify: true})
 	} else {
-		localConn, err = net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", t.LocalPort), constants.DialTimeout)
+		localConn, err = net.DialTimeout("tcp", t.localAddr, constants.DialTimeout)
 	}
 	if err != nil {
-		stream.Write([]byte(fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to local server: %v", err)))
+		stream.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to local server"))
 		return
 	}
 	defer localConn.Close()
 
-	// Disable Nagle algorithm for low latency
 	if tcpConn, ok := localConn.(*net.TCPConn); ok {
 		tcpConn.SetNoDelay(true)
 	}
 
-	// Use pooled buffers for zero-allocation copy
 	buf1 := GetBuffer()
 	buf2 := GetBuffer()
 	defer PutBuffer(buf1)
@@ -131,6 +129,9 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 
 	go func() {
 		_, err := io.CopyBuffer(localConn, stream, buf1)
+		if tc, ok := localConn.(*net.TCPConn); ok {
+			tc.CloseWrite()
+		}
 		errChan <- err
 	}()
 
@@ -142,7 +143,6 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	<-errChan
 }
 
-// Close closes the tunnel
 func (t *Tunnel) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -173,7 +173,6 @@ func (t *Tunnel) Close() error {
 	return nil
 }
 
-// GetLogPath returns the path to the log file
 func (t *Tunnel) GetLogPath() string {
 	if t.log != nil {
 		return t.log.GetLogPath()
@@ -181,7 +180,6 @@ func (t *Tunnel) GetLogPath() string {
 	return ""
 }
 
-// wsConnWrapper wraps WebSocket to implement net.Conn
 type wsConnWrapper struct {
 	conn      *websocket.Conn
 	reader    io.Reader
@@ -196,11 +194,7 @@ func (w *wsConnWrapper) Read(p []byte) (n int, err error) {
 		_, w.reader, err = w.conn.NextReader()
 		if err != nil {
 			if w.log != nil {
-				direction := "server->client"
-				if w.isClient {
-					direction = "server->client"
-				}
-				w.log.LogError(direction, err, w.conn.RemoteAddr().String(), w.localPort)
+				w.log.LogError("server->client", err, w.conn.RemoteAddr().String(), w.localPort)
 			}
 			return 0, err
 		}
@@ -209,8 +203,7 @@ func (w *wsConnWrapper) Read(p []byte) (n int, err error) {
 	n, err = w.reader.Read(p)
 	if err != nil && err != io.EOF {
 		if w.log != nil {
-			direction := "server->client"
-			w.log.LogError(direction, err, w.conn.RemoteAddr().String(), w.localPort)
+			w.log.LogError("server->client", err, w.conn.RemoteAddr().String(), w.localPort)
 		}
 	}
 	if err == io.EOF {
@@ -218,8 +211,7 @@ func (w *wsConnWrapper) Read(p []byte) (n int, err error) {
 		err = nil
 	}
 	if n > 0 && w.log != nil {
-		direction := "server->client"
-		w.log.LogData(direction, p[:n], w.conn.RemoteAddr().String(), w.localPort)
+		w.log.LogData("server->client", p[:n], w.conn.RemoteAddr().String(), w.localPort)
 	}
 	return n, err
 }
@@ -231,43 +223,23 @@ func (w *wsConnWrapper) Write(p []byte) (n int, err error) {
 	err = w.conn.WriteMessage(websocket.BinaryMessage, p)
 	if err != nil {
 		if w.log != nil {
-			direction := "client->server"
-			w.log.LogError(direction, err, w.conn.RemoteAddr().String(), w.localPort)
+			w.log.LogError("client->server", err, w.conn.RemoteAddr().String(), w.localPort)
 		}
 		return 0, err
 	}
 	if w.log != nil {
-		direction := "client->server"
-		w.log.LogData(direction, p, w.conn.RemoteAddr().String(), w.localPort)
+		w.log.LogData("client->server", p, w.conn.RemoteAddr().String(), w.localPort)
 	}
 	return len(p), nil
 }
 
-func (w *wsConnWrapper) Close() error {
-	return w.conn.Close()
-}
+func (w *wsConnWrapper) Close() error                       { return w.conn.Close() }
+func (w *wsConnWrapper) LocalAddr() net.Addr                { return w.conn.LocalAddr() }
+func (w *wsConnWrapper) RemoteAddr() net.Addr               { return w.conn.RemoteAddr() }
+func (w *wsConnWrapper) SetDeadline(t time.Time) error      { return nil }
+func (w *wsConnWrapper) SetReadDeadline(t time.Time) error  { return w.conn.SetReadDeadline(t) }
+func (w *wsConnWrapper) SetWriteDeadline(t time.Time) error { return w.conn.SetWriteDeadline(t) }
 
-func (w *wsConnWrapper) LocalAddr() net.Addr {
-	return w.conn.LocalAddr()
-}
-
-func (w *wsConnWrapper) RemoteAddr() net.Addr {
-	return w.conn.RemoteAddr()
-}
-
-func (w *wsConnWrapper) SetDeadline(t time.Time) error {
-	return nil
-}
-
-func (w *wsConnWrapper) SetReadDeadline(t time.Time) error {
-	return w.conn.SetReadDeadline(t)
-}
-
-func (w *wsConnWrapper) SetWriteDeadline(t time.Time) error {
-	return w.conn.SetWriteDeadline(t)
-}
-
-// ConnectClient establishes client-side tunnel connection
 func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify bool, useTLS bool) (*Tunnel, error) {
 	log, err := logger.NewLogger(sessionID)
 	if err != nil {
@@ -276,7 +248,6 @@ func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify 
 
 	log.LogEvent(fmt.Sprintf("Connecting to WebSocket: %s", wsURL), localPort)
 
-	// Create dialer with TLS config based on skipTLSVerify
 	dialer := &websocket.Dialer{
 		ReadBufferSize:    constants.WSBufferSize,
 		WriteBufferSize:   constants.WSBufferSize,
@@ -305,14 +276,7 @@ func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify 
 		isClient:  true,
 	}
 
-	// Optimized yamux config for client
-	config := yamux.DefaultConfig()
-	config.MaxStreamWindowSize = 1024 * 1024 // 1MB window
-	config.AcceptBacklog = 256
-	config.EnableKeepAlive = true
-	config.KeepAliveInterval = 30 * time.Second
-
-	session, err := yamux.Client(wsWrapper, config)
+	session, err := yamux.Client(wsWrapper, yamuxConfig())
 	if err != nil {
 		log.LogError("client", fmt.Errorf("failed to create yamux client: %w", err), remoteAddr, localPort)
 		conn.Close()

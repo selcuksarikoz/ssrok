@@ -10,17 +10,15 @@ import (
 	"time"
 )
 
-// AuditEvent represents a security event
 type AuditEvent struct {
 	Timestamp  time.Time `json:"timestamp"`
 	EventType  string    `json:"event_type"`
 	IP         string    `json:"ip"`
 	TunnelUUID string    `json:"tunnel_uuid,omitempty"`
 	Details    string    `json:"details"`
-	Severity   string    `json:"severity"` // info, warning, critical
+	Severity   string    `json:"severity"`
 }
 
-// AuditLogger handles security audit logging
 type AuditLogger struct {
 	mu   sync.RWMutex
 	file *os.File
@@ -32,7 +30,6 @@ var (
 	once     sync.Once
 )
 
-// GetAuditLogger returns singleton audit logger
 func GetAuditLogger() (*AuditLogger, error) {
 	var err error
 	once.Do(func() {
@@ -79,7 +76,6 @@ func getAuditLogDir() (string, error) {
 	}
 }
 
-// Log records an audit event
 func (al *AuditLogger) Log(event AuditEvent) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
@@ -88,7 +84,6 @@ func (al *AuditLogger) Log(event AuditEvent) {
 	al.enc.Encode(event)
 }
 
-// LogAuthFailure logs authentication failure
 func (al *AuditLogger) LogAuthFailure(ip, tunnelUUID, reason string) {
 	al.Log(AuditEvent{
 		EventType:  "auth_failure",
@@ -99,7 +94,6 @@ func (al *AuditLogger) LogAuthFailure(ip, tunnelUUID, reason string) {
 	})
 }
 
-// LogAuthSuccess logs successful authentication
 func (al *AuditLogger) LogAuthSuccess(ip, tunnelUUID string) {
 	al.Log(AuditEvent{
 		EventType:  "auth_success",
@@ -110,7 +104,6 @@ func (al *AuditLogger) LogAuthSuccess(ip, tunnelUUID string) {
 	})
 }
 
-// LogRateLimit logs rate limit hit
 func (al *AuditLogger) LogRateLimit(ip, tunnelUUID string) {
 	al.Log(AuditEvent{
 		EventType:  "rate_limit",
@@ -121,7 +114,6 @@ func (al *AuditLogger) LogRateLimit(ip, tunnelUUID string) {
 	})
 }
 
-// LogBruteForce logs brute force attempt
 func (al *AuditLogger) LogBruteForce(ip, tunnelUUID string, attempts int) {
 	al.Log(AuditEvent{
 		EventType:  "brute_force",
@@ -132,7 +124,6 @@ func (al *AuditLogger) LogBruteForce(ip, tunnelUUID string, attempts int) {
 	})
 }
 
-// LogConnectionLimit logs connection limit hit
 func (al *AuditLogger) LogConnectionLimit(ip string) {
 	al.Log(AuditEvent{
 		EventType: "connection_limit",
@@ -142,7 +133,6 @@ func (al *AuditLogger) LogConnectionLimit(ip string) {
 	})
 }
 
-// Close closes the audit log
 func (al *AuditLogger) Close() error {
 	al.mu.Lock()
 	defer al.mu.Unlock()
