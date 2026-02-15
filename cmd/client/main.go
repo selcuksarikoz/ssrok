@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -90,25 +91,30 @@ func main() {
 	} else if !useHTTPS && strings.HasPrefix(serverURL, "https://") {
 		serverURL = strings.Replace(serverURL, "https://", "http://", 1)
 	}
+
+	// Skip TLS verification for local development with self-signed certs
+	skipTLSVerify := false
+	if useHTTPS {
+		fmt.Println()
+		printHint("TLS Certificate: Skip verification for self-signed certs?")
+		fmt.Printf(colorBold + "   Skip verification? [y/N]: " + colorReset)
+		skipTLSStr, _ := reader.ReadString('\n')
+		skipTLSStr = strings.TrimSpace(strings.ToLower(skipTLSStr))
+		if skipTLSStr == "y" || skipTLSStr == "yes" {
+			skipTLSVerify = true
+			printHint(colorYellow + "TLS verification disabled (local dev only)" + colorReset)
+		}
+	}
 	fmt.Println()
 
 	printStep(2, "Secure your tunnel (optional)")
-	printHint("Leave empty for no password protection - anyone with the URL can access")
-	printHint("Set a password to require authentication via login page")
+	printHint("Leave empty for token-only access, set password for extra protection")
 	fmt.Print(colorBold + "   Password: " + colorReset)
 	password, _ := reader.ReadString('\n')
 	password = strings.TrimSpace(password)
 
 	if password != "" && len(password) < 4 {
-		fmt.Println()
-		fmt.Println(colorYellow + "   ⚠ Warning: Password is very short (minimum 4 characters recommended)" + colorReset)
-		fmt.Println()
-	}
-
-	if password == "" {
-		printHint(colorYellow + "⚠ No password set - tunnel is publicly accessible" + colorReset)
-	} else {
-		printHint("Password protection enabled - visitors must authenticate")
+		fmt.Println(colorYellow + "   ⚠ Warning: Minimum 4 characters recommended" + colorReset)
 	}
 	fmt.Println()
 
@@ -145,7 +151,7 @@ func main() {
 		RateLimit: rateLimit,
 	}
 
-	resp, err := registerTunnel(serverURL, config)
+	resp, err := registerTunnel(serverURL, config, skipTLSVerify)
 	if err != nil {
 		fmt.Println()
 		fmt.Println(colorRed + "   ✗ Failed to connect: " + err.Error() + colorReset)
@@ -207,7 +213,7 @@ func main() {
 	}
 
 	fmt.Println(colorDim + "   Establishing WebSocket connection..." + colorReset)
-	t, err := tunnel.ConnectClient(wsURL, port, tunnelUUID)
+	t, err := tunnel.ConnectClient(wsURL, port, tunnelUUID, skipTLSVerify)
 	if err != nil {
 		fmt.Println()
 		fmt.Println(colorRed + "   ✗ Tunnel connection failed: " + err.Error() + colorReset)
@@ -233,13 +239,20 @@ func main() {
 	fmt.Println()
 }
 
-func registerTunnel(serverURL string, config protocol.ConfigRequest) (*protocol.ConfigResponse, error) {
+func registerTunnel(serverURL string, config protocol.ConfigRequest, skipTLSVerify bool) (*protocol.ConfigResponse, error) {
 	jsonData, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := http.Post(
+	client := &http.Client{}
+	if skipTLSVerify {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+
+	resp, err := client.Post(
 		serverURL+constants.EndpointRegister,
 		"application/json",
 		bytes.NewBuffer(jsonData),

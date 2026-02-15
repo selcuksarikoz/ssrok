@@ -46,7 +46,9 @@ sudo mv ssrok /usr/local/bin/
 ### Build from Source
 
 ```bash
-go install github.com/ssrok/ssrok/cmd/client@latest
+git clone https://github.com/ssrok/ssrok.git
+cd ssrok
+make build
 ```
 
 ## Usage
@@ -54,43 +56,34 @@ go install github.com/ssrok/ssrok/cmd/client@latest
 ### Client
 
 ```bash
-# Connect local port 3000 to ssrok server
 ssrok 3000
-
-# With custom server
-SSROK_SERVER=https://tunnel.example.com ssrok 3000
 ```
 
 Interactive prompts:
-- **Password** (optional): Leave empty for token-only access, or set for additional protection
-- **Rate Limit** (default: 60): Requests per minute per IP (0 = unlimited)
-
-Output:
-```
-╔══════════════════════════════════════════════════════════╗
-║                    🚀 Tunnel Active                      ║
-╠══════════════════════════════════════════════════════════╣
-║  Magic URL: https://tunnel.example.com/550e8400-e29b...?token=... ║
-║  Raw URL:   https://tunnel.example.com/550e8400-e29b...           ║
-║  Local:     http://localhost:3000                                  ║
-║  Expires:   14:32:15 (1 hour)                                      ║
-╚══════════════════════════════════════════════════════════╝
-📝 Logs: ~/Library/Logs/ssrok/550e8400-e29b-41d4-a716-446655440000.log
-```
+1. **Server Configuration** - Use HTTPS? [y/N]
+2. **TLS Certificate** - Skip verification? (for local self-signed certs)
+3. **Password** (optional) - Additional protection layer
+4. **Rate Limit** (default: 60 req/min) - Per-IP throttling
 
 ### Server
 
 ```bash
-# Quick start
+# HTTP mode (local development)
 ssrok-server
 
-# With custom settings
-PORT=9000 SSROK_HOST=https://tunnel.example.com ssrok-server
+# HTTPS mode (requires TLS certificates)
+# Certificates: certs/server.crt, certs/server.key
+ssrok-server
+
+# With environment variables
+PORT=8080 SSROK_HOST=tunnel.example.com ssrok-server
 ```
 
-Environment variables:
+**Environment Variables:**
 - `PORT` - Server port (default: 8080)
-- `SSROK_HOST` - Public host URL (default: http://localhost:8080)
+- `SSROK_HOST` - Public host (without protocol)
+- `SSROK_CERT_FILE` - TLS certificate path (optional)
+- `SSROK_KEY_FILE` - TLS key path (optional)
 
 ## Architecture
 
@@ -118,9 +111,12 @@ Expected throughput: 500MB/s+ on gigabit networks
 - **Token Authentication**: All connections (WebSocket & HTTP) require valid tokens
 - **Password Layer**: Optional additional SHA256 password protection
 - **Secure Cookies**: HttpOnly, Secure, SameSiteStrict
-- **Rate Limiting**: Per-IP request throttling
+- **Rate Limiting**: Per-IP request throttling (default: 60 req/min)
+- **Connection Limits**: Max 10 concurrent connections per IP
+- **Brute Force Protection**: 5 failed attempts = 15min ban
 - **Auto Cleanup**: Sessions destroyed after 1 hour
 - **No Persistence**: All data in memory only
+- **Audit Logging**: Security events logged to JSON files
 
 ## Logging
 
@@ -130,10 +126,47 @@ Session logs stored per-tunnel:
 - **Linux**: `~/.local/share/ssrok/logs/{uuid}.log`
 - **Windows**: `%USERPROFILE%\AppData\Local\ssrok\logs\{uuid}.log`
 
+Audit logs:
+
+- **macOS**: `~/Library/Logs/ssrok/audit/audit-YYYY-MM-DD.log`
+- **Linux**: `~/.local/share/ssrok/audit/audit-YYYY-MM-DD.log`
+
 JSON format:
 ```json
 {"timestamp":"2026-02-15T12:00:00Z","direction":"server->client","type":"data","size":1024,"remote_addr":"...","local_port":3000}
-{"timestamp":"2026-02-15T12:00:01Z","direction":"client","type":"event","message":"Tunnel established","local_port":3000}
+{"timestamp":"2026-02-15T12:00:01Z","event_type":"auth_failure","ip":"...","severity":"warning","details":"Invalid password"}
+```
+
+## Deployment
+
+### Local Development
+
+```bash
+# Generate self-signed certificates
+./scripts/generate-certs.sh
+
+# Run server
+./ssrok-server
+
+# Run client
+./ssrok 3000
+# Use HTTPS? [y/N]: y
+# Skip verification? [y/N]: y
+```
+
+### Production (Render.com)
+
+1. Deploy server with `ssrok-server` binary
+2. Set environment variables:
+   - `PORT` - Required by Render
+   - `SSROK_HOST` - Your Render domain
+3. SSL is handled by Render's reverse proxy
+
+### Custom TLS
+
+```bash
+# Server with TLS certificates
+SSROK_CERT_FILE=/path/to/cert.crt SSROK_KEY_FILE=/path/to/key.key ssrok-server
 ```
 
 ## API Endpoints
@@ -147,21 +180,16 @@ JSON format:
 ## Development
 
 ```bash
-# Clone
-git clone https://github.com/ssrok/ssrok.git
-cd ssrok
-
 # Build
-make build        # Build both binaries
-make build-client # Build client only
-make build-server # Build server only
-
-# Run locally
-go run ./cmd/server    # Server on :8080
-go run ./cmd/client 3000  # Client connecting to localhost:3000
+make build        # Both binaries
+make build-client # Client only
+make build-server # Server only
 
 # Test
 go test ./...
+
+# Release
+make release
 ```
 
 ## License

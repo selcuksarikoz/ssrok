@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -233,16 +234,8 @@ func (w *wsConnWrapper) SetWriteDeadline(t time.Time) error {
 	return w.conn.SetWriteDeadline(t)
 }
 
-// optimizedDialer for high-performance WebSocket connections
-var optimizedDialer = &websocket.Dialer{
-	ReadBufferSize:    constants.WSBufferSize,
-	WriteBufferSize:   constants.WSBufferSize,
-	EnableCompression: false,
-	HandshakeTimeout:  10 * time.Second,
-}
-
 // ConnectClient establishes client-side tunnel connection
-func ConnectClient(wsURL string, localPort int, sessionID string) (*Tunnel, error) {
+func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify bool) (*Tunnel, error) {
 	log, err := logger.NewLogger(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
@@ -250,7 +243,19 @@ func ConnectClient(wsURL string, localPort int, sessionID string) (*Tunnel, erro
 
 	log.LogEvent(fmt.Sprintf("Connecting to WebSocket: %s", wsURL), localPort)
 
-	conn, _, err := optimizedDialer.Dial(wsURL, nil)
+	// Create dialer with TLS config based on skipTLSVerify
+	dialer := &websocket.Dialer{
+		ReadBufferSize:    constants.WSBufferSize,
+		WriteBufferSize:   constants.WSBufferSize,
+		EnableCompression: false,
+		HandshakeTimeout:  10 * time.Second,
+	}
+
+	if skipTLSVerify {
+		dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	conn, _, err := dialer.Dial(wsURL, nil)
 	if err != nil {
 		log.LogError("client->server", fmt.Errorf("failed to connect to server: %w", err), "", localPort)
 		log.Close()
