@@ -114,6 +114,11 @@ func loadTemplates() (map[string]*template.Template, error) {
 	return tmpls, nil
 }
 
+func renderTemplate(w http.ResponseWriter, name string, data map[string]interface{}) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	templates[name].Execute(w, data)
+}
+
 type gzipResponseWriter struct {
 	http.ResponseWriter
 	*gzip.Writer
@@ -398,7 +403,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 
 	parts := strings.Split(path, "/")
 	if len(parts) < 1 || parts[0] == "" {
-		templates["home.html"].Execute(w, map[string]interface{}{
+		renderTemplate(w, "home.html", map[string]interface{}{
 			"Title": "ssrok - Secure Tunneling",
 		})
 		return
@@ -421,7 +426,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		sess, ok = store.Get(tunnelUUID)
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
-			templates["notfound.html"].Execute(w, map[string]interface{}{
+			renderTemplate(w, "notfound.html", map[string]interface{}{
 				"Title": "Tunnel Not Found",
 			})
 			return
@@ -436,7 +441,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 	if sess == nil {
 		if !isPathUUID {
 			w.WriteHeader(http.StatusNotFound)
-			templates["notfound.html"].Execute(w, map[string]interface{}{
+			renderTemplate(w, "notfound.html", map[string]interface{}{
 				"Title": "Not Found",
 			})
 			return
@@ -449,7 +454,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("⛔ Rate limit exceeded: %s", clientIP)
 		w.WriteHeader(http.StatusTooManyRequests)
-		templates["ratelimit.html"].Execute(w, map[string]interface{}{
+		renderTemplate(w, "ratelimit.html", map[string]interface{}{
 			"Title": constants.MsgRateLimitExceeded,
 		})
 		return
@@ -523,7 +528,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			}
 			csrf := session.SignCSRFToken(session.GenerateCSRFToken())
 			w.WriteHeader(http.StatusUnauthorized)
-			templates["login.html"].Execute(w, map[string]interface{}{
+			renderTemplate(w, "login.html", map[string]interface{}{
 				"Title":     "Login",
 				"Error":     "Invalid password",
 				"CSRFToken": csrf,
@@ -532,7 +537,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		}
 
 		csrf := session.SignCSRFToken(session.GenerateCSRFToken())
-		templates["login.html"].Execute(w, map[string]interface{}{
+		renderTemplate(w, "login.html", map[string]interface{}{
 			"Title":     "Login",
 			"CSRFToken": csrf,
 		})
