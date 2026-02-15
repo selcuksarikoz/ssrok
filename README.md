@@ -1,195 +1,150 @@
 # ssrok
 
-Blazing fast secure reverse proxy tunnel (ngrok alternative) built in Go.
+Secure, ephemeral reverse proxy tunnels. Expose your local dev server to the internet.
 
 ## Features
 
-- ⚡ **Blazing Fast** - 128KB buffers, optimized yamux, zero-allocation transfers
-- 🔒 **Token Security** - All connections require valid tokens (WebSocket + HTTP)
-- 🔐 **Optional Password** - Additional password protection layer
-- 🎫 **Magic Links** - Share access via secure token URLs
-- 📝 **Session Logging** - Per-session JSON logs with traffic stats
-- ⏱️ **Auto Expiry** - Sessions expire after 1 hour
-- 🚦 **Rate Limiting** - Per-IP rate limiting per tunnel
-- 🔄 **WebSocket + Yamux** - Multiplexed connections with 1MB window
+- ⚡ **Fast** — 128KB buffers, yamux multiplexing, zero-allocation transfers
+- 🔒 **Secure** — Token auth, optional password, brute force protection
+- 🎫 **Magic Links** — Share secure URLs with embedded tokens
+- ⏱️ **Ephemeral** — Sessions auto-expire after 1 hour
+- 🚦 **Rate Limiting** — Per-IP, per-session throttling
+- 📝 **Logging** — Per-session JSON logs
 
 ## Installation
 
-### macOS / Linux (Homebrew)
+### macOS (Homebrew)
 
 ```bash
-brew tap ssrok/tap
+brew tap selcuksarikoz/ssrok
 brew install ssrok
 ```
 
-### Binary Download
-
-Download latest release from [Releases](https://github.com/ssrok/ssrok/releases):
+### Linux
 
 ```bash
-# macOS ARM64 (Apple Silicon)
-curl -L https://github.com/ssrok/ssrok/releases/latest/download/ssrok-darwin-arm64 -o ssrok
+# AMD64
+curl -L https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-linux-amd64 -o ssrok
 chmod +x ssrok
 sudo mv ssrok /usr/local/bin/
+```
 
-# macOS AMD64 (Intel)
-curl -L https://github.com/ssrok/ssrok/releases/latest/download/ssrok-darwin-amd64 -o ssrok
-chmod +x ssrok
-sudo mv ssrok /usr/local/bin/
+### Windows
 
-# Linux AMD64
-curl -L https://github.com/ssrok/ssrok/releases/latest/download/ssrok-linux-amd64 -o ssrok
-chmod +x ssrok
-sudo mv ssrok /usr/local/bin/
+Download `ssrok-windows-amd64.exe` from [Releases](https://github.com/selcuksarikoz/ssrok/releases/latest) and add to your PATH.
+
+```powershell
+# PowerShell
+Invoke-WebRequest -Uri "https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-windows-amd64.exe" -OutFile "ssrok.exe"
+Move-Item ssrok.exe C:\Windows\System32\
 ```
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/ssrok/ssrok.git
+git clone https://github.com/selcuksarikoz/ssrok.git
 cd ssrok
 make build
 ```
 
-## Usage
+## Quick Start
 
-### Client
+### 1. Start the Server
 
 ```bash
+go run cmd/server/main.go
+```
+
+### 2. Start the Client
+
+```bash
+# Expose localhost:3000
 ssrok 3000
 ```
 
-Interactive prompts:
-1. **Server Configuration** - Use HTTPS? [y/N]
-2. **TLS Certificate** - Skip verification? (for local self-signed certs)
-3. **Password** (optional) - Additional protection layer
-4. **Rate Limit** (default: 60 req/min) - Per-IP throttling
+You'll get a Magic URL and a Raw URL:
 
-### Server
+```
+╔══════════════════════════════════════════════════════════╗
+║                    🚀 Tunnel Active                      ║
+╚══════════════════════════════════════════════════════════╝
 
-```bash
-# HTTP mode (local development)
-ssrok-server
+   Magic URL: http://localhost:8080/UUID?token=TOKEN
+   Raw URL:   http://localhost:8080/UUID
 
-# HTTPS mode (requires TLS certificates)
-# Certificates: certs/server.crt, certs/server.key
-ssrok-server
-
-# With environment variables
-PORT=8080 SSROK_HOST=tunnel.example.com ssrok-server
+   Local:     http://localhost:3000
+   Expires:   05:30 (1 hour)
 ```
 
-**Environment Variables:**
-- `PORT` - Server port (default: 8080)
-- `SSROK_HOST` - Public host (without protocol)
-- `SSROK_CERT_FILE` - TLS certificate path (optional)
-- `SSROK_KEY_FILE` - TLS key path (optional)
+- **Magic URL** — Direct access, no password required
+- **Raw URL** — Requires password (if set)
+
+## Configuration
+
+All configuration is done via `.env` file or environment variables.
+
+```bash
+cp .env.example .env
+```
+
+| Variable           | Default            | Description          |
+| ------------------ | ------------------ | -------------------- |
+| `PORT`             | `8080`             | Server listen port   |
+| `SSROK_HOST`       | `localhost:8080`   | Public hostname      |
+| `SSROK_ENABLE_TLS` | `false`            | Enable built-in TLS  |
+| `SSROK_CERT_FILE`  | `certs/server.crt` | TLS certificate path |
+| `SSROK_KEY_FILE`   | `certs/server.key` | TLS key path         |
 
 ## Architecture
 
 ```
-┌─────────────┐      WebSocket      ┌─────────────┐      HTTP      ┌─────────────┐
-│   Client    │ ◄──────────────────► │   Server    │ ◄────────────► │   Visitor   │
-│ (ssrok CLI) │   (Token Required)  │  (Public)   │   (Token +    │  (Browser)  │
-└─────────────┘                     └─────────────┘   Password)    └─────────────┘
-       │                                   │
-       └──── localhost:3000                └──── https://host/{uuid}?token=...
+┌─────────────┐     WebSocket/yamux     ┌─────────────┐      HTTP       ┌─────────────┐
+│   Client    │ ◄─────────────────────► │   Server    │ ◄────────────► │  Visitor    │
+│ (ssrok CLI) │    Token Required       │  (:8080)    │   Token/Pass   │ (Browser)   │
+└──────┬──────┘                         └─────────────┘                └─────────────┘
+       │
+       └──── localhost:3000
 ```
-
-## Performance
-
-- **Buffer Size**: 128KB (32x vs standard 4KB)
-- **Copy Buffer**: 256KB with sync.Pool reuse
-- **Yamux Window**: 1MB stream window
-- **TCP_NODELAY**: Enabled for low latency
-- **Zero-Allocation**: Buffer pooling minimizes GC
-
-Expected throughput: 500MB/s+ on gigabit networks
 
 ## Security
 
-- **Token Authentication**: All connections (WebSocket & HTTP) require valid tokens
-- **Password Layer**: Optional additional SHA256 password protection
-- **Secure Cookies**: HttpOnly, Secure, SameSiteStrict
-- **Rate Limiting**: Per-IP request throttling (default: 60 req/min)
-- **Connection Limits**: Max 10 concurrent connections per IP
-- **Brute Force Protection**: 5 failed attempts = 15min ban
-- **Auto Cleanup**: Sessions destroyed after 1 hour
-- **No Persistence**: All data in memory only
-- **Audit Logging**: Security events logged to JSON files
+- **Token Auth** — All connections require valid tokens
+- **Password** — Optional SHA256 password layer
+- **Secure Cookies** — HttpOnly, Secure, SameSiteStrict
+- **Rate Limiting** — Per-IP per-session (default: 60 req/min)
+- **Connection Limits** — Max 10 concurrent per IP
+- **Brute Force** — 5 failed attempts → 15 min ban
+- **Auto Cleanup** — Sessions destroyed after 1 hour
+- **In-Memory** — No data persistence, no database
+- **Audit Log** — Security events logged to JSON
 
 ## Logging
 
-Session logs stored per-tunnel:
+Session logs per-tunnel:
 
-- **macOS**: `~/Library/Logs/ssrok/{uuid}.log`
-- **Linux**: `~/.local/share/ssrok/logs/{uuid}.log`
-- **Windows**: `%USERPROFILE%\AppData\Local\ssrok\logs\{uuid}.log`
+| OS      | Path                                                |
+| ------- | --------------------------------------------------- |
+| macOS   | `~/Library/Logs/ssrok/{uuid}.log`                   |
+| Linux   | `~/.local/share/ssrok/logs/{uuid}.log`              |
+| Windows | `%USERPROFILE%\AppData\Local\ssrok\logs\{uuid}.log` |
 
-Audit logs:
+## API
 
-- **macOS**: `~/Library/Logs/ssrok/audit/audit-YYYY-MM-DD.log`
-- **Linux**: `~/.local/share/ssrok/audit/audit-YYYY-MM-DD.log`
-
-JSON format:
-```json
-{"timestamp":"2026-02-15T12:00:00Z","direction":"server->client","type":"data","size":1024,"remote_addr":"...","local_port":3000}
-{"timestamp":"2026-02-15T12:00:01Z","event_type":"auth_failure","ip":"...","severity":"warning","details":"Invalid password"}
-```
-
-## Deployment
-
-### Local Development
-
-```bash
-# Generate self-signed certificates
-./scripts/generate-certs.sh
-
-# Run server
-./ssrok-server
-
-# Run client
-./ssrok 3000
-# Use HTTPS? [y/N]: y
-# Skip verification? [y/N]: y
-```
-
-### Production (Render.com)
-
-1. Deploy server with `ssrok-server` binary
-2. Set environment variables:
-   - `PORT` - Required by Render
-   - `SSROK_HOST` - Your Render domain
-3. SSL is handled by Render's reverse proxy
-
-### Custom TLS
-
-```bash
-# Server with TLS certificates
-SSROK_CERT_FILE=/path/to/cert.crt SSROK_KEY_FILE=/path/to/key.key ssrok-server
-```
-
-## API Endpoints
-
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/api/register` | POST | - | Register new tunnel |
-| `/ws/{uuid}?token=` | WS | Token | WebSocket tunnel |
-| `/{uuid}?token=` | GET | Token+Pass | Public access |
+| Endpoint            | Method | Description      |
+| ------------------- | ------ | ---------------- |
+| `/`                 | GET    | Landing page     |
+| `/api/register`     | POST   | Register tunnel  |
+| `/ws/{uuid}?token=` | WS     | WebSocket tunnel |
+| `/{uuid}?token=`    | GET    | Access tunnel    |
 
 ## Development
 
 ```bash
-# Build
-make build        # Both binaries
-make build-client # Client only
-make build-server # Server only
-
-# Test
-go test ./...
-
-# Release
-make release
+make build          # Build binaries
+make build-client   # Client only
+make build-server   # Server only
+go test ./...       # Run tests
+make release        # Release builds
 ```
 
 ## License

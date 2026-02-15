@@ -69,7 +69,7 @@ func loadTemplates() (map[string]*template.Template, error) {
 	}
 
 	// Define pages to load
-	pages := []string{"login.html", "ratelimit.html", "notfound.html"}
+	pages := []string{"login.html", "ratelimit.html", "notfound.html", "home.html"}
 
 	for _, page := range pages {
 		pageContent, err := ui.Templates.ReadFile(page)
@@ -374,7 +374,9 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 
 	parts := strings.Split(path, "/")
 	if len(parts) < 1 || parts[0] == "" {
-		http.Error(w, "Not found", http.StatusNotFound)
+		templates["home.html"].Execute(w, map[string]interface{}{
+			"Title": "ssrok - Secure Tunneling",
+		})
 		return
 	}
 
