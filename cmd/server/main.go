@@ -36,7 +36,7 @@ var (
 	tunnelMu       = &sync.RWMutex{}
 	host           string
 	serverUseTLS   bool
-	templates      *template.Template
+	templates      map[string]*template.Template
 	connLimiter    *security.ConnectionLimiter
 	bruteProtector *security.BruteForceProtector
 	auditLogger    *security.AuditLogger
@@ -54,40 +54,46 @@ func init() {
 	}
 }
 
-func loadTemplates() (*template.Template, error) {
-	tmpl := template.New("")
+func loadTemplates() (map[string]*template.Template, error) {
+	tmpls := make(map[string]*template.Template)
 
 	layoutContent, err := ui.Templates.ReadFile("layout.html")
 	if err != nil {
 		return nil, err
 	}
 
-	loginContent, err := ui.Templates.ReadFile("login.html")
+	// Parse layout as the base template
+	baseTmpl, err := template.New("layout").Parse(string(layoutContent))
 	if err != nil {
 		return nil, err
 	}
 
-	ratelimitContent, err := ui.Templates.ReadFile("ratelimit.html")
-	if err != nil {
-		return nil, err
+	// Define pages to load
+	pages := []string{"login.html", "ratelimit.html", "notfound.html"}
+
+	for _, page := range pages {
+		pageContent, err := ui.Templates.ReadFile(page)
+		if err != nil {
+			return nil, err
+		}
+
+		// Clone the base template for this page
+		pageTmpl, err := baseTmpl.Clone()
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse the page content into the clone
+		// This defines the "content" template specific to this page
+		_, err = pageTmpl.Parse(string(pageContent))
+		if err != nil {
+			return nil, err
+		}
+
+		tmpls[page] = pageTmpl
 	}
 
-	tmpl, err = tmpl.Parse(string(layoutContent))
-	if err != nil {
-		return nil, err
-	}
-
-	tmpl, err = tmpl.Parse(string(loginContent))
-	if err != nil {
-		return nil, err
-	}
-
-	tmpl, err = tmpl.Parse(string(ratelimitContent))
-	if err != nil {
-		return nil, err
-	}
-
-	return tmpl, nil
+	return tmpls, nil
 }
 
 type gzipResponseWriter struct {
@@ -399,7 +405,10 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		// Path explicitly requests a tunnel
 		sess, ok = store.Get(tunnelUUID)
 		if !ok {
-			http.Error(w, "Tunnel not found or expired", http.StatusNotFound)
+			w.WriteHeader(http.StatusNotFound)
+			templates["notfound.html"].Execute(w, map[string]interface{}{
+				"Title": "Tunnel Not Found",
+			})
 			return
 		}
 	} else if cookieUUID != "" {
@@ -412,7 +421,10 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 
 	if sess == nil {
 		if !isPathUUID {
-			http.Error(w, "Not found", http.StatusNotFound)
+			w.WriteHeader(http.StatusNotFound)
+			templates["notfound.html"].Execute(w, map[string]interface{}{
+				"Title": "Not Found",
+			})
 			return
 		}
 	}
@@ -422,7 +434,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			auditLogger.LogRateLimit(clientIP, tunnelUUID)
 		}
 		w.WriteHeader(http.StatusTooManyRequests)
-		templates.ExecuteTemplate(w, "ratelimit.html", map[string]interface{}{
+		templates["ratelimit.html"].Execute(w, map[string]interface{}{
 			"Title": constants.MsgRateLimitExceeded,
 		})
 		return
@@ -487,7 +499,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 				auditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid password")
 			}
 			w.WriteHeader(http.StatusUnauthorized)
-			templates.ExecuteTemplate(w, "login.html", map[string]interface{}{
+			templates["login.html"].Execute(w, map[string]interface{}{
 				"Title": "Login",
 				"Error": "Invalid password",
 			})
@@ -495,7 +507,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Show login if not POST
-		templates.ExecuteTemplate(w, "login.html", map[string]interface{}{
+		templates["login.html"].Execute(w, map[string]interface{}{
 			"Title": "Login",
 		})
 		return

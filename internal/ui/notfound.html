@@ -1,0 +1,41 @@
+{{define "content"}}
+<div class="glass-card animate-fade-in w-full max-w-md p-8 rounded-2xl">
+    <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full glass-card mb-4 bg-red-500/10 border-red-500/30">
+            <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+        </div>
+        <h1 class="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-pink-600">
+            Tunnel Not Found
+        </h1>
+        <p class="text-gray-400">
+            The tunnel you are trying to access does not exist or has expired.
+        </p>
+    </div>
+
+    <div class="space-y-4">
+        <div class="bg-black/30 w-full p-4 rounded-xl border border-white/10 text-center text-gray-300 transform transition-all hover:border-red-500/30">
+            <p class="text-sm">Possible reasons:</p>
+            <ul class="text-left list-disc list-inside mt-2 text-xs text-gray-400 space-y-1 ml-4">
+                <li>The client application was stopped</li>
+                <li>The tunnel session timed out (1 hour limit)</li>
+                <li>The URL is incorrect</li>
+            </ul>
+        </div>
+
+        <a href="/" class="glass-button w-full py-3 px-4 rounded-xl font-medium text-white flex items-center justify-center group mt-6">
+            <span class="mr-2">Back to Home</span>
+            <svg class="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+            </svg>
+        </a>
+    </div>
+
+    <div class="mt-8 text-center">
+        <p class="text-xs text-gray-500">
+            Powered by <span class="text-gray-400 font-semibold">ssrok</span>
+        </p>
+    </div>
+</div>
+{{end}}

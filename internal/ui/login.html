@@ -12,7 +12,7 @@
             </h1>
             <p class="text-gray-400 mt-2 text-sm">Enter the password to access this tunnel</p>
         </div>
-        
+
         {{if .Error}}
         <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
             <div class="flex items-center gap-2">
@@ -23,25 +23,24 @@
             </div>
         </div>
         {{end}}
-        
+
         <form method="POST" action="" class="space-y-6">
             <div>
                 <label class="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Password</label>
-                <input 
-                    type="password" 
-                    name="password" 
-                    required 
+                <input
+                    type="password"
+                    name="password"
                     autofocus
                     class="glass-input w-full px-4 py-3 rounded-xl text-white placeholder-gray-500"
                     placeholder="Enter password..."
                 >
             </div>
-            
+
             <button type="submit" class="glass-button w-full py-3 rounded-xl font-semibold text-white">
                 Access Tunnel
             </button>
         </form>
-        
+
         <div class="mt-6 text-center">
             <p class="text-xs text-gray-500">
                 Protected by <span class="text-indigo-400 font-medium">ssrok</span>
