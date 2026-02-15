@@ -194,6 +194,8 @@ make build-client   # Client only
 make build-server   # Server only
 go test ./...       # Run tests
 make release        # Release builds
+make gen-certs      # Generate TLS certificates for local HTTPS testing
+make dev-server     # Run server locally (defaults to localhost:8080)
 ```
 
 ## License
