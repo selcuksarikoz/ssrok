@@ -74,3 +74,20 @@ install: build
 	cp ssrok /usr/local/bin/
 	cp ssrok-server /usr/local/bin/
 	@echo "Installed successfully"
+
+# Scripts
+# Generate TLS certificates for local HTTPS development
+gen-certs:
+	@chmod +x scripts/generate-certs.sh
+	@./scripts/generate-certs.sh
+
+# Run the server in development mode (defaults to localhost:8080)
+# Use SSROK_CONFIG_FILE=.env.prod to test production config (note: script default ports may take precedence)
+dev-server:
+	@chmod +x scripts/run-server.sh
+	@./scripts/run-server.sh
+
+# Build the client using production settings defined in .env.prod
+build-script:
+	@chmod +x scripts/build-client.sh
+	@./scripts/build-client.sh

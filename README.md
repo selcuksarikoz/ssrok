@@ -101,6 +101,44 @@ cp .env.example .env
 | `SSROK_CERT_FILE`  | `certs/server.crt` | TLS certificate path |
 | `SSROK_KEY_FILE`   | `certs/server.key` | TLS key path         |
 
+## Production Deployment
+
+### 1. Environment Configuration
+
+For production, start by copying the example production configuration:
+
+```bash
+cp env.prod.example .env
+```
+
+Edit `.env` to set your production values:
+
+- `SSROK_DOMAIN`: Set your public domain
+- `SSROK_ENABLE_TLS`: Enable if handling SSL directly (otherwise let Nginx/Cloudflare handle headers)
+
+**Note:**
+
+- **Server**: Always reads configuration from `.env` in the working directory.
+- **Development**: You can test production settings locally by setting `SSROK_CONFIG_FILE`:
+  ```bash
+  SSROK_CONFIG_FILE=.env.prod make dev-server
+  ```
+
+### 2. Helper Scripts
+
+The project includes helper scripts for common tasks, integrated into the Makefile:
+
+```bash
+# Generate self-signed certificates for local HTTPS testing
+make gen-certs
+
+# Run the server locally (uses dev config by default)
+make dev-server
+
+# Build the client using production settings
+make build-script
+```
+
 ## Architecture
 
 ```

@@ -8,10 +8,22 @@ import (
 )
 
 func init() {
-	// Try to load .env file, but don't fail if it doesn't exist
-	if err := godotenv.Load(); err != nil {
+	// Support custom config file for development testing (e.g. SSROK_CONFIG_FILE=.env.prod)
+	configFile := os.Getenv("SSROK_CONFIG_FILE")
+
+	if configFile != "" {
+		if err := godotenv.Load(configFile); err != nil {
+			log.Printf("Warning: Failed to load config from %s: %v", configFile, err)
+		} else {
+			log.Printf("Loaded configuration from %s", configFile)
+		}
 	} else {
-		log.Println("Loaded configuration from .env file")
+		// Default behavior: try to load .env file
+		if err := godotenv.Load(); err != nil {
+			// .env file is optional in production if using system env vars
+		} else {
+			log.Println("Loaded configuration from .env file")
+		}
 	}
 }
 
