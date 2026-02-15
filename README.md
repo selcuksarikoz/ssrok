@@ -1,24 +1,61 @@
 # ssrok
 
-Secure, ephemeral reverse proxy tunnels. Expose your local dev server to the internet.
+**Secure, ephemeral reverse proxy tunnels for developers.**
 
-## Features
+Expose your local development server to the internet with a secure, time-limited URL. Perfect for testing webhooks, sharing work-in-progress with clients, or quick demos.
 
-- ⚡ **Fast** — 128KB buffers, yamux multiplexing, zero-allocation transfers
-- 🔒 **Secure** — Token auth, optional password, brute force protection
-- 🎫 **Magic Links** — Share secure URLs with embedded tokens
-- ⏱️ **Ephemeral** — Sessions auto-expire after 1 hour
-- 🚦 **Rate Limiting** — Per-IP, per-session throttling
-- 📝 **Logging** — Per-session JSON logs
-- 💾 **Redis Support** — Optional persistence via Redis
+![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+
+## Why ssrok?
+
+- **Instant** — Get a public URL in seconds, not minutes
+- **Secure** — Token authentication + optional password protection
+- **Ephemeral** — URLs auto-expire (default: 1 hour)
+- **Fast** — 128KB buffers, yamux multiplexing, zero-copy transfers
+- **Rate Limited** — Built-in DDoS prevention per session
+- **Quick Config** — Interactive prompts for password, rate limit, duration
+- **API Ready** — Programmatic tunnel creation via REST API
+
+## Quick Start
+
+```bash
+# Expose localhost:3000
+ssrok 3000
+
+# Or with custom host:port
+ssrok localhost:8080
+ssrok 192.168.1.5:8000
+```
+
+That's it. You'll get:
+
+```
+   magic url:  https://your-server.app/abc123?token=xyz
+   public url: https://your-server.app/abc123
+   local:      http://localhost:3000
+   expires:    60 min
+```
+
+- **Magic URL** — Share with anyone, no password needed
+- **Public URL** — Password-protected, for sensitive demos
 
 ## Installation
 
-### macOS (Homebrew)
+### macOS
 
 ```bash
+# Add the tap (requires GitHub repository: selcuksarikoz/homebrew-tap)
 brew tap selcuksarikoz/ssrok
+
+# Install ssrok
 brew install ssrok
+```
+
+Or install directly:
+
+```bash
+brew install selcuksarikoz/ssrok/ssrok
 ```
 
 ### Build from Source
@@ -29,97 +66,27 @@ cd ssrok
 make build
 ```
 
-## Quick Start
+## Features
 
-### 1. Start the Server
+| Feature              | Description                       |
+| -------------------- | --------------------------------- |
+| ⚡ **Fast**          | 128KB buffers, yamux multiplexing |
+| 🔒 **Secure**        | Token auth, optional password     |
+| 🎫 **Magic Links**   | URLs with embedded tokens         |
+| ⏱️ **Ephemeral**     | Auto-expire after 1 hour          |
+| 🚦 **Rate Limiting** | Per-IP, per-session throttling    |
+| 📝 **Session Logs**  | JSON logs for each tunnel         |
+| 💾 **Redis**         | Optional persistence              |
 
-```bash
-go run cmd/server/main.go
-```
+## Security
 
-### 2. Start the Client
-
-```bash
-# Expose localhost:3000 (default)
-ssrok 3000
-
-# Expose specific host:port
-ssrok localhost:8080
-
-# Expose external IP (e.g. device on local network)
-ssrok 192.168.1.5:8000
-```
-
-You'll get a Magic URL and a Public URL:
-
-```
-   magic url:  https://ssrok.onrender.com/abc123?token=xyz
-   public url: https://ssrok.onrender.com/abc123
-
-   local:      http://localhost:3000
-   expires:    60 min
-```
-
-- **Magic URL** — Direct access, no password required
-- **Public URL** — Requires password (if set)
-
-## Configuration
-
-All configuration is done via `.env` file or environment variables.
-
-```bash
-cp .env.example .env
-```
-
-| Variable           | Default            | Description          |
-| ------------------ | ------------------ | -------------------- |
-| `PORT`             | `80`               | Server listen port   |
-| `SSROK_SERVER`    | `localhost`        | Public hostname      |
-| `SSROK_ENABLE_TLS` | `false`            | Enable built-in TLS  |
-| `SSROK_CERT_FILE`  | `certs/server.crt` | TLS certificate path |
-| `SSROK_KEY_FILE`   | `certs/server.key` | TLS key path         |
-| `REDIS_HOST`       | (none)             | Redis host (optional)|
-| `REDIS_PORT`       | `6379`             | Redis port           |
-| `REDIS_USERNAME`   | (none)             | Redis username       |
-| `REDIS_PASSWORD`   | (none)             | Redis password       |
-
-## Production Deployment
-
-### 1. Environment Configuration
-
-For production, start by copying the example production configuration:
-
-```bash
-cp env.prod.example .env
-```
-
-Edit `.env` to set your production values:
-
-- `SSROK_SERVER`: Set your public server URL
-- `SSROK_ENABLE_TLS`: Enable if handling SSL directly (otherwise let Nginx/Cloudflare handle headers)
-
-**Note:**
-
-- **Server**: Always reads configuration from `.env` in the working directory.
-- **Development**: You can test production settings locally by setting `SSROK_CONFIG_FILE`:
-  ```bash
-  SSROK_CONFIG_FILE=.env.prod make dev-server
-  ```
-
-### 2. Helper Scripts
-
-The project includes helper scripts for common tasks, integrated into the Makefile:
-
-```bash
-# Generate self-signed certificates for local HTTPS testing
-make gen-certs
-
-# Run the server locally (uses dev config by default)
-make dev-server
-
-# Build the client using production settings
-make build-script
-```
+- Token authentication required for all connections
+- Optional SHA256 password protection
+- Rate limiting: 60 req/min per IP (configurable)
+- Max 10 concurrent connections per IP
+- Brute force protection: 5 failed attempts → 15 min ban
+- Auto-cleanup: sessions destroyed after expiry
+- Audit logging for security events
 
 ## Architecture
 
@@ -132,46 +99,65 @@ make build-script
        └──── localhost:3000
 ```
 
-## Security
+## Environment Variables
 
-- **Token Auth** — All connections require valid tokens
-- **Password** — Optional SHA256 password layer
-- **Secure Cookies** — HttpOnly, Secure, SameSiteStrict
-- **Rate Limiting** — Per-IP per-session (default: 60 req/min)
-- **Connection Limits** — Max 10 concurrent per IP
-- **Brute Force** — 5 failed attempts → 15 min ban
-- **Auto Cleanup** — Sessions destroyed after 1 hour
-- **In-Memory** — No data persistence by default (optional Redis for persistence)
-- **Audit Log** — Security events logged to JSON
+| Variable           | Default     | Description           |
+| ------------------ | ----------- | --------------------- |
+| `PORT`             | `80`        | Server listen port    |
+| `SSROK_SERVER`     | `localhost` | Public hostname       |
+| `SSROK_ENABLE_TLS` | `false`     | Enable built-in TLS   |
+| `REDIS_HOST`       | (none)      | Redis host (optional) |
+| `REDIS_PORT`       | `6379`      | Redis port            |
 
-## Logging
+## API (Programmatic Usage)
 
-Session logs per-tunnel:
+You can create tunnels programmatically via the REST API:
 
-| OS      | Path                                                |
-| ------- | --------------------------------------------------- |
-| macOS   | `~/Library/Logs/ssrok/{uuid}.log`                   |
-| Linux   | `~/.local/share/ssrok/logs/{uuid}.log`              |
+```bash
+# Register a tunnel
+curl -X POST https://your-server.com/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "port": 3000,
+    "password": "optional",
+    "rate_limit": 60,
+    "use_tls": false,
+    "expires_in": "1h"
+  }'
+```
 
-## API
+**Response:**
+```json
+{
+  "uuid": "abc123",
+  "url": "https://your-server.com/abc123",
+  "token": "xyz789",
+  "expires_in": "1h0m0s"
+}
+```
 
-| Endpoint            | Method | Description      |
-| ------------------- | ------ | ---------------- |
-| `/`                 | GET    | Landing page     |
-| `/api/register`     | POST   | Register tunnel  |
-| `/ws/{uuid}?token=` | WS     | WebSocket tunnel |
-| `/{uuid}?token=`    | GET    | Access tunnel    |
+**Connect via WebSocket:**
+```bash
+wss://your-server.com/ws/abc123?token=xyz789
+```
+
+### Request Fields
+
+| Field        | Type    | Required | Description                    |
+| ------------ | ------- | -------- | ------------------------------ |
+| `port`       | int     | Yes      | Local port to tunnel          |
+| `password`   | string  | No       | Optional password protection  |
+| `rate_limit` | int     | No       | Requests per minute (0=unlimited) |
+| `use_tls`    | bool    | No       | Enable TLS for local connection |
+| `expires_in` | string  | No       | Duration (e.g. "1h", "30m")   |
 
 ## Development
 
 ```bash
 make build          # Build binaries
-make build-client   # Client only
-make build-server   # Server only
-go test ./...       # Run tests
+make dev-server     # Run server locally
+make test           # Run tests
 make release        # Release builds
-make gen-certs      # Generate TLS certificates for local HTTPS testing
-make dev-server     # Run server locally (defaults to localhost:8080)
 ```
 
 ## License
