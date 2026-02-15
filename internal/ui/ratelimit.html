@@ -1,0 +1,52 @@
+{{define "content"}}
+<div class="w-full max-w-md animate-fade-in">
+    <div class="glass-card rounded-2xl p-8">
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            
+            <h1 class="text-3xl font-bold text-white mb-2">
+                Rate Limit Exceeded
+            </h1>
+            
+            <p class="text-gray-400 mb-6">
+                You've made too many requests. Please wait a moment before trying again.
+            </p>
+            
+            <div class="py-4 px-6 rounded-xl bg-white/5 border border-white/10">
+                <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Reset In</div>
+                <div class="text-2xl font-mono text-amber-400" id="countdown">60s</div>
+            </div>
+            
+            <div class="mt-8">
+                <a href="/" class="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                    Back to Home
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let seconds = 60;
+    const countdownEl = document.getElementById('countdown');
+    
+    const timer = setInterval(() => {
+        seconds--;
+        countdownEl.textContent = seconds + 's';
+        
+        if (seconds <= 0) {
+            clearInterval(timer);
+            countdownEl.textContent = 'Ready';
+            countdownEl.classList.remove('text-amber-400');
+            countdownEl.classList.add('text-green-400');
+        }
+    }, 1000);
+</script>
+{{end}}

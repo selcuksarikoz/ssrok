@@ -1,0 +1,11 @@
+# Binary
+/server
+/ssrok
+/ssrok-server
+.envrc
+
+# Env
+.env
+
+# Logs
+*.log
