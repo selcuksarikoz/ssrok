@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -65,6 +64,17 @@ var dangerousResponseHeaders = map[string]bool{
 	"X-Frame-Options":           true,
 	"X-Xss-Protection":          true,
 	"X-Content-Type-Options":    true,
+}
+
+var hopByHopHeadersNames = []string{
+	"Connection",
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",
+	"Trailers",
+	"Transfer-Encoding",
+	"Upgrade",
 }
 
 func init() {
@@ -520,7 +530,27 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var authenticated bool
+	var extraPath string
+
+	// Check for token in URL (Magic URL / API Key support)
 	token := r.URL.Query().Get("token")
+	originalToken := token
+
+	// Support malformed URLs where path is appended to token (e.g. ?token=xyz/api/req)
+	if token != "" && !sess.VerifyToken(token) {
+		if idx := strings.IndexByte(token, '/'); idx >= 0 {
+			attemptToken := token[:idx]
+			if sess.VerifyToken(attemptToken) {
+				token = attemptToken
+				extraPath = originalToken[idx:] // Use originalToken to get the path
+				log.Printf("🔹 Parsed malformed token. Token: %s, Path: %s", token, extraPath)
+			}
+		}
+	} else if token != "" {
+		// Normal token match
+		// log.Printf("Token matched directly: %s", token)
+	}
 
 	if token != "" && sess.VerifyToken(token) {
 		log.Printf("✅ User logged in (Token): %s", clientIP)
@@ -545,18 +575,12 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			SameSite: constants.SessionCookieSameSite,
 		})
 
-		cleanURL := "/" + tunnelUUID
-		if len(parts) > 1 {
-			cleanURL += "/" + strings.Join(parts[1:], "/")
-		}
-
-		http.Redirect(w, r, cleanURL, http.StatusFound)
-		return
+		// For API clients (curl/Postman): Do not redirect, just allow access.
+		// Even 307 requires client support. Direct proxying is best.
+		authenticated = true
 	}
 
-	var authenticated bool
-
-	if cookieUUID == tunnelUUID && cookieUUID != "" {
+	if !authenticated && cookieUUID == tunnelUUID && cookieUUID != "" {
 		authenticated = true
 	}
 
@@ -645,9 +669,23 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 
 	var targetPath string
 	if isPathUUID {
-		targetPath = "/" + strings.Join(parts[1:], "/")
+		// Strip the UUID from the path (parts[0]="", parts[1]="UUID")
+		if len(parts) > 2 {
+			targetPath = "/" + strings.Join(parts[2:], "/")
+		} else {
+			targetPath = "/"
+		}
 	} else {
 		targetPath = r.URL.Path
+	}
+
+	if extraPath != "" {
+		// Append the extra path extracted from the token
+		if targetPath == "/" {
+			targetPath = extraPath
+		} else {
+			targetPath = strings.TrimRight(targetPath, "/") + extraPath
+		}
 	}
 
 	proxyRequest(t, w, r, targetPath)
@@ -672,76 +710,33 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 	defer stream.Close()
 
-	if path == "" {
-		path = "/"
-	}
-	if r.URL.RawQuery != "" {
-		path += "?" + r.URL.RawQuery
-	}
-
-	buf := tunnel.GetBytesBuffer()
-
-	buf.WriteString(r.Method)
-	buf.WriteByte(' ')
-	buf.WriteString(path)
-	buf.WriteString(" HTTP/1.1\r\n")
-
-	for key, values := range r.Header {
-		if !hopByHopHeaders[key] && !sensitiveRequestHeaders[key] &&
-			key != "Accept-Encoding" && key != "Host" {
-			for _, value := range values {
-				buf.WriteString(key)
-				buf.WriteString(": ")
-				buf.WriteString(value)
-				buf.WriteString("\r\n")
-			}
-		}
+	// Prepare request for forwarding via r.Write
+	// strip hop-by-hop headers
+	for _, h := range hopByHopHeadersNames {
+		r.Header.Del(h)
 	}
 
-	// Set Host header - use just hostname for standard ports
-	buf.WriteString("Host: localhost")
-	if !utils.IsDefaultPort(strconv.Itoa(t.LocalPort)) {
-		buf.WriteString(":")
-		buf.WriteString(strconv.Itoa(t.LocalPort))
-	}
-	buf.WriteString("\r\n")
+	// Update URL and Host for the target
+	r.URL.Scheme = "http"
+	r.URL.Host = fmt.Sprintf("localhost:%d", t.LocalPort)
+	// The argument 'path' passed to proxyRequest is the target PATH (without query).
+	// e.g. /api/test
 
-	clientIP := security.GetClientIP(r)
-	buf.WriteString("X-Forwarded-For: ")
-	buf.WriteString(clientIP)
-	buf.WriteString("\r\n")
+	r.URL.Path = path
+	// r.URL.RawQuery is already set from the original request.
 
-	buf.WriteString("X-Forwarded-Host: ")
-	buf.WriteString(r.Host)
-	buf.WriteString("\r\n")
+	r.Host = r.URL.Host
+	r.RequestURI = "" // Required by r.Write
 
-	buf.WriteString("X-Forwarded-Proto: ")
-	buf.WriteString(utils.GetScheme(r))
-	buf.WriteString("\r\n")
-
-	if r.ContentLength > 0 {
-		buf.WriteString("Content-Length: ")
-		buf.WriteString(strconv.FormatInt(r.ContentLength, 10))
-		buf.WriteString("\r\n")
-	}
-
-	buf.WriteString("\r\n")
-
-	if _, err := stream.Write(buf.Bytes()); err != nil {
-		tunnel.PutBytesBuffer(buf)
+	// Write the request to the stream (headers + body)
+	if err := r.Write(stream); err != nil {
+		log.Printf("Proxy: failed to write request: %v", err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		renderTemplate(w, "error.html", map[string]interface{}{
 			"Title":   "Request Failed",
 			"Message": "Failed to forward request to the local server.",
 		})
 		return
-	}
-	tunnel.PutBytesBuffer(buf)
-
-	if r.Body != nil {
-		reqBuf := tunnel.GetBuffer()
-		io.CopyBuffer(stream, r.Body, reqBuf)
-		tunnel.PutBuffer(reqBuf)
 	}
 
 	br := tunnel.GetBufioReader(stream)
@@ -797,19 +792,11 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		}()
 
 		// Stream from Tunnel (resp.Body or br) -> Client (conn)
-		// We use resp.Body because it wraps the buffered reader which might have data
 		io.Copy(conn, stream) // Copy directly from the underlying stream
 		return
 	}
 
-	// Intercept 502/503 from the tunnel client (e.g. "Failed to connect to local server")
-	// treating them as connection errors to show our nice error page
 	if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable {
-		// Read a bit of the body to see if it's our client's error message
-		// Or just always show the error page for 502/503 from tunnel
-
-		// Note from context: The client sends "HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to local server"
-		// So we can check the status code and render our template.
 		tunnel.PutBufioReader(br)
 		w.WriteHeader(resp.StatusCode)
 		renderTemplate(w, "error.html", map[string]interface{}{
@@ -827,7 +814,6 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		}
 	}
 	// Explicitly remove Content-Length to avoid mismatches.
-	// Go will add it automatically if known, or use chunked encoding.
 	w.Header().Del("Content-Length")
 
 	w.WriteHeader(resp.StatusCode)
