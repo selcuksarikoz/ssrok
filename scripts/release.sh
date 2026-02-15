@@ -54,13 +54,13 @@ SHA256_AMD64=$(shasum -a 256 dist/ssrok-darwin-amd64 | awk '{print $1}')
 echo "Updating Homebrew formula..."
 
 # Update version and URL
-sed -i '' "s|version \".*\"|version \"$NEW_VERSION\"|" homebrew-tap/Formula/ssrok.rb
-sed -i '' 's|github.com/ssrok/ssrok|github.com/selcuksarikoz/ssrok|g' homebrew-tap/Formula/ssrok.rb
-sed -i '' 's|download/v[0-9.]*/|download/v'"$NEW_VERSION"'/|g' homebrew-tap/Formula/ssrok.rb
+sed -i '' "s|version \".*\"|version \"$NEW_VERSION\"|" Formula/ssrok.rb
+sed -i '' 's|github.com/ssrok/ssrok|github.com/selcuksarikoz/ssrok|g' Formula/ssrok.rb
+sed -i '' 's|download/v[0-9.]*/|download/v'"$NEW_VERSION"'/|g' Formula/ssrok.rb
 
 # Update SHA256 checksums - macOS arm64 and amd64
-sed -i '' '/darwin-arm64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_ARM64"'"/' homebrew-tap/Formula/ssrok.rb
-sed -i '' '/darwin-amd64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_AMD64"'"/' homebrew-tap/Formula/ssrok.rb
+sed -i '' '/darwin-arm64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_ARM64"'"/' Formula/ssrok.rb
+sed -i '' '/darwin-amd64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_AMD64"'"/' Formula/ssrok.rb
 
 echo "Creating GitHub release..."
 
@@ -96,10 +96,11 @@ gh release create "v$NEW_VERSION" \
 echo ""
 echo "Pushing Homebrew formula changes..."
 
-cd homebrew-tap
-git add Formula/ssrok.rb
-git commit -m "Update ssrok to v$NEW_VERSION"
-git push origin main
+echo "Pushing changes..."
+
+git add Makefile internal/constants/constants.go Formula/ssrok.rb
+git commit -m "chore: release v$NEW_VERSION"
+git push origin HEAD
 
 echo ""
 echo "✅ Release v$NEW_VERSION complete!"

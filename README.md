@@ -42,20 +42,18 @@ That's it. You'll get:
 
 ## Installation
 
-### macOS
+### Quick Install (Recommended)
 
 ```bash
-# Add the tap (requires GitHub repository: selcuksarikoz/homebrew-tap)
-brew tap selcuksarikoz/ssrok
-
-# Install ssrok
-brew install ssrok
+curl -sL https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-darwin-arm64 -o /usr/local/bin/ssrok
+chmod +x /usr/local/bin/ssrok
 ```
 
-Or install directly:
+### via Homebrew (Recommended)
 
 ```bash
-brew install selcuksarikoz/ssrok/ssrok
+brew tap selcuksarikoz/ssrok https://github.com/selcuksarikoz/ssrok
+brew install ssrok
 ```
 
 ### Build from Source
@@ -127,6 +125,7 @@ curl -X POST https://your-server.com/api/register \
 ```
 
 **Response:**
+
 ```json
 {
   "uuid": "abc123",
@@ -137,19 +136,20 @@ curl -X POST https://your-server.com/api/register \
 ```
 
 **Connect via WebSocket:**
+
 ```bash
 wss://your-server.com/ws/abc123?token=xyz789
 ```
 
 ### Request Fields
 
-| Field        | Type    | Required | Description                    |
-| ------------ | ------- | -------- | ------------------------------ |
-| `port`       | int     | Yes      | Local port to tunnel          |
-| `password`   | string  | No       | Optional password protection  |
-| `rate_limit` | int     | No       | Requests per minute (0=unlimited) |
-| `use_tls`    | bool    | No       | Enable TLS for local connection |
-| `expires_in` | string  | No       | Duration (e.g. "1h", "30m")   |
+| Field        | Type   | Required | Description                       |
+| ------------ | ------ | -------- | --------------------------------- |
+| `port`       | int    | Yes      | Local port to tunnel              |
+| `password`   | string | No       | Optional password protection      |
+| `rate_limit` | int    | No       | Requests per minute (0=unlimited) |
+| `use_tls`    | bool   | No       | Enable TLS for local connection   |
+| `expires_in` | string | No       | Duration (e.g. "1h", "30m")       |
 
 ## Development
 
