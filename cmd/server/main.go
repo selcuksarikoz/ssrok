@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	store          *session.Store
+	store          session.StoreInterface
 	tunnels        = make(map[string]*tunnel.Tunnel)
 	tunnelMu       = &sync.RWMutex{}
 	host           string
@@ -79,8 +79,12 @@ var hopByHopHeadersNames = []string{
 }
 
 func init() {
-	store = session.NewStore()
-	store.OnExpire = func(uuid string) {
+	var err error
+	store, err = session.NewStore()
+	if err != nil {
+		log.Fatalf("Failed to initialize session store: %v", err)
+	}
+	store.OnExpire(func(uuid string) {
 		tunnelMu.Lock()
 		if t, ok := tunnels[uuid]; ok {
 			t.Close()
@@ -88,11 +92,10 @@ func init() {
 			log.Printf("🗑 Tunnel closed (expired): %s", uuid)
 		}
 		tunnelMu.Unlock()
-	}
+	})
 	connLimiter = security.NewConnectionLimiter(constants.MaxConnectionsPerIP)
 	bruteProtector = security.NewBruteForceProtector(constants.MaxAuthAttempts, constants.BlockDuration)
 
-	var err error
 	auditLogger, err = security.GetAuditLogger()
 	if err != nil {
 		log.Printf("Warning: Failed to initialize audit logger: %v", err)

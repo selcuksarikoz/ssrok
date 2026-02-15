@@ -10,6 +10,7 @@ Secure, ephemeral reverse proxy tunnels. Expose your local dev server to the int
 - ⏱️ **Ephemeral** — Sessions auto-expire after 1 hour
 - 🚦 **Rate Limiting** — Per-IP, per-session throttling
 - 📝 **Logging** — Per-session JSON logs
+- 💾 **Redis Support** — Optional persistence via Redis
 
 ## Installation
 
@@ -100,6 +101,10 @@ cp .env.example .env
 | `SSROK_ENABLE_TLS` | `false`            | Enable built-in TLS  |
 | `SSROK_CERT_FILE`  | `certs/server.crt` | TLS certificate path |
 | `SSROK_KEY_FILE`   | `certs/server.key` | TLS key path         |
+| `REDIS_HOST`       | (none)             | Redis host (optional)|
+| `REDIS_PORT`       | `6379`             | Redis port           |
+| `REDIS_USERNAME`   | (none)             | Redis username       |
+| `REDIS_PASSWORD`   | (none)             | Redis password       |
 
 ## Production Deployment
 
@@ -159,7 +164,7 @@ make build-script
 - **Connection Limits** — Max 10 concurrent per IP
 - **Brute Force** — 5 failed attempts → 15 min ban
 - **Auto Cleanup** — Sessions destroyed after 1 hour
-- **In-Memory** — No data persistence, no database
+- **In-Memory** — No data persistence by default (optional Redis for persistence)
 - **Audit Log** — Security events logged to JSON
 
 ## Logging

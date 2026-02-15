@@ -73,6 +73,11 @@ const (
 )
 
 const (
+	RedisKeyPrefix   = "ssrok:session:"
+	RedisKeyTTLField = "ttl"
+)
+
+const (
 	MsgInvalidJSON       = "Invalid JSON"
 	MsgMethodNotAllowed  = "Method not allowed"
 	MsgInvalidPort       = "Invalid port"
