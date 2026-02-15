@@ -161,25 +161,103 @@ func main() {
 	if useTLS {
 		localProto = "https"
 	}
+	localAddr := fmt.Sprintf("%s://localhost:%d", localProto, port)
+	expiresAt := time.Now().Add(resp.ExpiresIn).Format(constants.TimeFormatShort)
+
+	// Calculate box width based on longest URL
+	maxLen := len(magicURL)
+	if len(resp.URL) > maxLen {
+		maxLen = len(resp.URL)
+	}
+	if len(localAddr) > maxLen {
+		maxLen = len(localAddr)
+	}
+	boxWidth := maxLen + 24
+	if boxWidth < 60 {
+		boxWidth = 60
+	}
+
+	pad := func(s string, width int) string {
+		if len(s) >= width {
+			return s
+		}
+		return s + strings.Repeat(" ", width-len(s))
+	}
+
+	hLine := strings.Repeat("─", boxWidth-2)
+	hLineThin := strings.Repeat("─", boxWidth-2)
+	emptyInner := strings.Repeat(" ", boxWidth-2)
 
 	fmt.Println()
 	fmt.Println()
-	fmt.Println(colorGreen + "╔══════════════════════════════════════════════════════════╗" + colorReset)
-	fmt.Println(colorGreen + "║" + colorBold + "                    🚀 Tunnel Active                      " + colorReset + colorGreen + "║" + colorReset)
-	fmt.Println(colorGreen + "╚══════════════════════════════════════════════════════════╝" + colorReset)
-	fmt.Println()
-	fmt.Printf("   %sMagic URL:%s %s%s%s\n", colorBold, colorReset, colorCyan, magicURL, colorReset)
-	fmt.Printf("   %sRaw URL:%s   %s%s%s\n", colorBold, colorReset, colorYellow, resp.URL, colorReset)
-	fmt.Println()
-	fmt.Printf("   %sLocal:%s     %s://localhost:%d\n", colorBold, colorReset, localProto, port)
-	fmt.Printf("   %sExpires:%s   %s (%s)\n", colorBold, colorReset, time.Now().Add(resp.ExpiresIn).Format(constants.TimeFormatShort), constants.DurationHour)
-	fmt.Println()
-	fmt.Println(colorDim + "   📋 Share the Magic URL for direct access (no password required)" + colorReset)
-	fmt.Println(colorDim + "   🔒 Share the Raw URL + password for authenticated access" + colorReset)
-	fmt.Println()
-	fmt.Println(colorYellow + "   ⚠ Note: Accept the self-signed certificate warning in your browser if it appears." + colorReset)
-	fmt.Println()
-	fmt.Println(colorBold + "   Press Ctrl+C to stop" + colorReset)
+
+	// Top border
+	fmt.Printf("   %s╭%s╮%s\n", colorGreen, hLine, colorReset)
+	// Title
+	title := "🚀 Tunnel Active"
+	titlePad := (boxWidth - 2 - len(title) - 2) / 2 // -2 for emoji width
+	if titlePad < 0 {
+		titlePad = 0
+	}
+	titleLine := strings.Repeat(" ", titlePad) + title + strings.Repeat(" ", boxWidth-2-titlePad-len(title)-2)
+	fmt.Printf("   %s│%s%s%s%s│%s\n", colorGreen, colorReset, colorBold, titleLine, colorGreen, colorReset)
+	// Separator
+	fmt.Printf("   %s├%s┤%s\n", colorGreen, hLineThin, colorReset)
+	// Empty line
+	fmt.Printf("   %s│%s%s%s│%s\n", colorGreen, colorReset, emptyInner, colorGreen, colorReset)
+
+	// Magic URL
+	magicLabel := " ✨ Magic URL  "
+	magicValue := pad(magicURL, boxWidth-2-len(magicLabel)-1) + " "
+	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorBold+colorPurple, magicLabel, colorCyan, magicValue, colorGreen, colorReset)
+
+	// Empty line
+	fmt.Printf("   %s│%s%s%s│%s\n", colorGreen, colorReset, emptyInner, colorGreen, colorReset)
+
+	// Raw URL
+	rawLabel := " 🔗 Raw URL    "
+	rawValue := pad(resp.URL, boxWidth-2-len(rawLabel)-1) + " "
+	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorBold, rawLabel, colorYellow, rawValue, colorGreen, colorReset)
+
+	// Empty line
+	fmt.Printf("   %s│%s%s%s│%s\n", colorGreen, colorReset, emptyInner, colorGreen, colorReset)
+
+	// Thin separator
+	fmt.Printf("   %s├%s┤%s\n", colorGreen, hLineThin, colorReset)
+
+	// Local & Expires
+	localLabel := " 🖥  Local      "
+	localValue := pad(localAddr, boxWidth-2-len(localLabel)-1) + " "
+	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, localLabel, colorReset, localValue, colorGreen, colorReset)
+
+	expiresLabel := " ⏱  Expires    "
+	expiresStr := fmt.Sprintf("%s (%s)", expiresAt, constants.DurationHour)
+	expiresValue := pad(expiresStr, boxWidth-2-len(expiresLabel)-1) + " "
+	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, expiresLabel, colorReset, expiresValue, colorGreen, colorReset)
+
+	// Empty line
+	fmt.Printf("   %s│%s%s%s│%s\n", colorGreen, colorReset, emptyInner, colorGreen, colorReset)
+
+	// Thin separator
+	fmt.Printf("   %s├%s┤%s\n", colorGreen, hLineThin, colorReset)
+
+	// Hints
+	hint1 := pad(" 📋 Share Magic URL → direct access (no password)", boxWidth-2)
+	hint2 := pad(" 🔒 Share Raw URL   → requires password", boxWidth-2)
+	fmt.Printf("   %s│%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, hint1, colorGreen, colorReset)
+	fmt.Printf("   %s│%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, hint2, colorGreen, colorReset)
+
+	// Empty line
+	fmt.Printf("   %s│%s%s%s│%s\n", colorGreen, colorReset, emptyInner, colorGreen, colorReset)
+
+	// Ctrl+C
+	ctrlc := " Press Ctrl+C to stop"
+	ctrlcPad := (boxWidth - 2 - len(ctrlc)) / 2
+	ctrlcLine := strings.Repeat(" ", ctrlcPad) + ctrlc + strings.Repeat(" ", boxWidth-2-ctrlcPad-len(ctrlc))
+	fmt.Printf("   %s│%s%s%s%s│%s\n", colorGreen, colorReset, colorBold, ctrlcLine, colorGreen, colorReset)
+
+	// Bottom border
+	fmt.Printf("   %s╰%s╯%s\n", colorGreen, hLine, colorReset)
 	fmt.Println()
 
 	wsURL := resp.URL
