@@ -18,6 +18,7 @@ type Session struct {
 	PasswordHash string
 	TokenHash    string
 	RateLimit    int
+	UseTLS       bool
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	Conn         *websocket.Conn

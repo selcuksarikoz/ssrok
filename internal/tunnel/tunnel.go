@@ -28,17 +28,19 @@ type Tunnel struct {
 	WSConn    *websocket.Conn
 	Session   *yamux.Session
 	LocalPort int
+	UseTLS    bool
 	mu        sync.RWMutex
 	isClosed  bool
 	log       *logger.Logger
 }
 
 // NewTunnel creates a new tunnel instance
-func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int) *Tunnel {
+func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool) *Tunnel {
 	return &Tunnel{
 		UUID:      uuid,
 		WSConn:    wsConn,
 		LocalPort: localPort,
+		UseTLS:    useTLS,
 	}
 }
 
@@ -76,7 +78,14 @@ func (t *Tunnel) HandleWebSocket() error {
 func (t *Tunnel) handleStream(stream net.Conn) {
 	defer stream.Close()
 
-	localConn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", t.LocalPort), constants.DialTimeout)
+	var localConn net.Conn
+	var err error
+
+	if t.UseTLS {
+		localConn, err = tls.Dial("tcp", fmt.Sprintf("localhost:%d", t.LocalPort), &tls.Config{InsecureSkipVerify: true})
+	} else {
+		localConn, err = net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", t.LocalPort), constants.DialTimeout)
+	}
 	if err != nil {
 		stream.Write([]byte(fmt.Sprintf("HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to local server: %v", err)))
 		return

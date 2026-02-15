@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -88,6 +89,34 @@ func loadTemplates() (*template.Template, error) {
 	return tmpl, nil
 }
 
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	*gzip.Writer
+}
+
+func (w *gzipResponseWriter) Header() http.Header {
+	return w.ResponseWriter.Header()
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+func gzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+
+		w.Header().Set("Content-Encoding", "gzip")
+		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
+	})
+}
+
 func main() {
 	var err error
 	templates, err = loadTemplates()
@@ -104,13 +133,14 @@ func main() {
 	mux.HandleFunc(constants.EndpointWebSocket, handleWebSocket)
 	mux.HandleFunc(constants.EndpointRoot, handleTunnel)
 
+	handler := gzipMiddleware(mux)
+
 	port := utils.GetEnv("PORT", constants.DefaultPort)
 	certFile := utils.GetEnv("SSROK_CERT_FILE", "certs/server.crt")
 	keyFile := utils.GetEnv("SSROK_KEY_FILE", "certs/server.key")
 
 	log.Printf("🚀 ssrok server starting on :%s", port)
 
-	// Check if TLS is configured
 	useTLS := false
 	if _, err := os.Stat(certFile); err == nil {
 		if _, err := os.Stat(keyFile); err == nil {
@@ -124,10 +154,10 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	if useTLS {
-		log.Printf("🔒 HTTPS enabled, cert: %s, key: %s", certFile, keyFile)
+		log.Printf("🔒 HTTPS enabled (HTTP/2)")
 		server = &http.Server{
 			Addr:    ":" + port,
-			Handler: mux,
+			Handler: handler,
 		}
 		go func() {
 			if err := server.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
@@ -135,10 +165,10 @@ func main() {
 			}
 		}()
 	} else {
-		log.Printf("🌐 HTTP mode")
+		log.Printf("🌐 HTTP mode (HTTP/2)")
 		server = &http.Server{
 			Addr:    ":" + port,
-			Handler: mux,
+			Handler: handler,
 		}
 		go func() {
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -194,6 +224,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		PasswordHash: session.Hash(req.Password),
 		TokenHash:    session.Hash(token),
 		RateLimit:    req.RateLimit,
+		UseTLS:       req.UseTLS,
 		CreatedAt:    time.Now(),
 		ExpiresAt:    time.Now().Add(constants.SessionDuration),
 		RequestCount: make(map[string]int),
@@ -283,7 +314,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sess.Conn = conn
 	sess.TunnelActive = true
 
-	t := tunnel.NewTunnel(tunnelUUID, conn, sess.Port)
+	t := tunnel.NewTunnel(tunnelUUID, conn, sess.Port, sess.UseTLS)
 
 	tunnelMu.Lock()
 	tunnels[tunnelUUID] = t
@@ -455,15 +486,15 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 	defer stream.Close()
 
-	targetURL := "/" + strings.Join(strings.Split(path, "/")[1:], "/")
-	if targetURL == "" {
-		targetURL = "/"
+	targetPath := "/" + strings.Join(strings.Split(path, "/")[1:], "/")
+	if targetPath == "" {
+		targetPath = "/"
 	}
 	if r.URL.RawQuery != "" {
-		targetURL += "?" + r.URL.RawQuery
+		targetPath += "?" + r.URL.RawQuery
 	}
 
-	reqLine := fmt.Sprintf("%s %s HTTP/1.1\r\n", r.Method, targetURL)
+	reqLine := fmt.Sprintf("%s %s HTTP/1.1\r\n", r.Method, targetPath)
 
 	var buf bytes.Buffer
 	buf.WriteString(reqLine)
@@ -486,9 +517,9 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 
 	if r.Body != nil {
-		buf := tunnel.GetBuffer()
-		io.CopyBuffer(stream, r.Body, buf)
-		tunnel.PutBuffer(buf)
+		reqBuf := tunnel.GetBuffer()
+		io.CopyBuffer(stream, r.Body, reqBuf)
+		tunnel.PutBuffer(reqBuf)
 		r.Body.Close()
 	}
 
@@ -503,9 +534,9 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respBuf[:n])), r)
 	if err != nil {
 		w.Write(respBuf[:n])
-		buf := tunnel.GetBuffer()
-		io.CopyBuffer(w, stream, buf)
-		tunnel.PutBuffer(buf)
+		respBuf2 := tunnel.GetBuffer()
+		io.CopyBuffer(w, stream, respBuf2)
+		tunnel.PutBuffer(respBuf2)
 		return
 	}
 

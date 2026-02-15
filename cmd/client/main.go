@@ -64,46 +64,21 @@ func main() {
 
 	serverURL := utils.GetEnv("SSROK_SERVER", constants.DefaultServerURL)
 
+	// Auto-detect HTTPS and skip TLS verify for localhost
+	useHTTPS := strings.HasPrefix(serverURL, "https://")
+	skipTLSVerify := useHTTPS && (strings.Contains(serverURL, "localhost") || strings.Contains(serverURL, "127.0.0.1"))
+
 	printBanner()
 
 	reader := bufio.NewReader(os.Stdin)
 
-	printStep(1, "Server Configuration")
-	printHint("Protocol for connecting to ssrok server")
-	fmt.Printf(colorBold + "   Use HTTPS? [y/N]: " + colorReset)
-	useHTTPSStr, _ := reader.ReadString('\n')
-	useHTTPSStr = strings.TrimSpace(strings.ToLower(useHTTPSStr))
-
-	useHTTPS := false
-	if useHTTPSStr == "y" || useHTTPSStr == "yes" {
-		useHTTPS = true
-		printHint("Using HTTPS/WSS protocol")
-	} else {
-		printHint("Using HTTP/WS protocol")
-	}
-
-	// Update server URL protocol based on user choice
-	if useHTTPS && !strings.HasPrefix(serverURL, "https://") {
-		serverURL = strings.Replace(serverURL, "http://", "https://", 1)
-		if !strings.HasPrefix(serverURL, "https://") {
-			serverURL = "https://" + serverURL
-		}
-	} else if !useHTTPS && strings.HasPrefix(serverURL, "https://") {
-		serverURL = strings.Replace(serverURL, "https://", "http://", 1)
-	}
-
-	// Skip TLS verification for local development with self-signed certs
-	skipTLSVerify := false
-	if useHTTPS {
-		fmt.Println()
-		printHint("TLS Certificate: Skip verification for self-signed certs?")
-		fmt.Printf(colorBold + "   Skip verification? [y/N]: " + colorReset)
-		skipTLSStr, _ := reader.ReadString('\n')
-		skipTLSStr = strings.TrimSpace(strings.ToLower(skipTLSStr))
-		if skipTLSStr == "y" || skipTLSStr == "yes" {
-			skipTLSVerify = true
-			printHint(colorYellow + "TLS verification disabled (local dev only)" + colorReset)
-		}
+	printStep(1, "Local server uses HTTPS?")
+	fmt.Printf(colorBold+"   Enable TLS for localhost:%d [y/N]: "+colorReset, port)
+	useTLSStr, _ := reader.ReadString('\n')
+	useTLSStr = strings.TrimSpace(useTLSStr)
+	useTLS := strings.ToLower(useTLSStr) == "y"
+	if useTLS {
+		printHint(colorGreen + "TLS enabled - will connect to localhost using HTTPS" + colorReset)
 	}
 	fmt.Println()
 
@@ -114,7 +89,7 @@ func main() {
 	password = strings.TrimSpace(password)
 
 	if password != "" && len(password) < 4 {
-		fmt.Println(colorYellow + "   ⚠ Warning: Minimum 4 characters recommended" + colorReset)
+		printHint(colorYellow + "   ⚠ Warning: Minimum 4 characters recommended" + colorReset)
 	}
 	fmt.Println()
 
@@ -149,6 +124,7 @@ func main() {
 		Port:      port,
 		Password:  password,
 		RateLimit: rateLimit,
+		UseTLS:    useTLS,
 	}
 
 	resp, err := registerTunnel(serverURL, config, skipTLSVerify)
