@@ -543,14 +543,12 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 }
 
 func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path string) {
-	log.Printf("Proxy: request received for path: %s", path)
 	stream, err := t.Session.OpenStream()
 	if err != nil {
 		log.Printf("Proxy: failed to open stream: %v", err)
 		http.Error(w, "Failed to open tunnel stream", http.StatusServiceUnavailable)
 		return
 	}
-	log.Printf("Proxy: stream opened successfully (id: %d)", stream.StreamID())
 	defer stream.Close()
 
 	if path == "" {
@@ -596,9 +594,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 
 	buf.WriteString("\r\n")
 
-	log.Printf("Proxy: writing request headers (%d bytes)", buf.Len())
 	if _, err := stream.Write(buf.Bytes()); err != nil {
-		log.Printf("Proxy: failed to write headers: %v", err)
 		http.Error(w, "Failed to write request", http.StatusServiceUnavailable)
 		return
 	}
@@ -610,7 +606,6 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		r.Body.Close()
 	}
 
-	log.Printf("Proxy: waiting for response...")
 	resp, err := http.ReadResponse(bufio.NewReader(stream), r)
 	if err != nil {
 		log.Printf("Proxy: Failed to read response from tunnel: %v", err)
@@ -618,7 +613,6 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		return
 	}
 	defer resp.Body.Close()
-	log.Printf("Proxy: response received: %s", resp.Status)
 
 	for key, values := range resp.Header {
 		if !hopByHop[key] {
@@ -632,8 +626,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	// Stream the body
 	copyBuf := tunnel.GetBuffer()
 	defer tunnel.PutBuffer(copyBuf)
-	n, err := io.CopyBuffer(w, resp.Body, copyBuf)
-	log.Printf("Proxy: response body streamed (%d bytes)", n)
+	io.CopyBuffer(w, resp.Body, copyBuf)
 }
 
 func getScheme(r *http.Request) string {
