@@ -96,7 +96,6 @@ func main() {
 	}
 
 	host = utils.GetEnv("SSROK_HOST", constants.DefaultHost)
-	// Remove protocol prefix if present, we'll detect it from requests
 	host = strings.TrimPrefix(host, "http://")
 	host = strings.TrimPrefix(host, "https://")
 
@@ -106,22 +105,47 @@ func main() {
 	mux.HandleFunc(constants.EndpointRoot, handleTunnel)
 
 	port := utils.GetEnv("PORT", constants.DefaultPort)
-	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
-	}
+	certFile := utils.GetEnv("SSROK_CERT_FILE", "certs/server.crt")
+	keyFile := utils.GetEnv("SSROK_KEY_FILE", "certs/server.key")
 
 	log.Printf("🚀 ssrok server starting on :%s", port)
-	log.Printf("🌐 Host: %s", host)
+
+	// Check if TLS is configured
+	useTLS := false
+	if _, err := os.Stat(certFile); err == nil {
+		if _, err := os.Stat(keyFile); err == nil {
+			useTLS = true
+		}
+	}
+
+	var server *http.Server
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+	if useTLS {
+		log.Printf("🔒 HTTPS enabled, cert: %s, key: %s", certFile, keyFile)
+		server = &http.Server{
+			Addr:    ":" + port,
+			Handler: mux,
 		}
-	}()
+		go func() {
+			if err := server.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTPS server error: %v", err)
+			}
+		}()
+	} else {
+		log.Printf("🌐 HTTP mode")
+		server = &http.Server{
+			Addr:    ":" + port,
+			Handler: mux,
+		}
+		go func() {
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTP server error: %v", err)
+			}
+		}()
+	}
 
 	<-sigChan
 	log.Println("🛑 Shutting down server...")
@@ -178,19 +202,14 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	store.Save(sess)
 
-	// Detect scheme from request (http or https)
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
+	// Detect scheme from request or X-Forwarded-Proto header
+	scheme := getScheme(r)
 
 	// Build URL with detected scheme
 	var tunnelURL string
 	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
-		// Host already has protocol, use as-is
 		tunnelURL = fmt.Sprintf("%s/%s", host, tunnelUUID)
 	} else {
-		// Add detected scheme
 		tunnelURL = fmt.Sprintf("%s://%s/%s", scheme, host, tunnelUUID)
 	}
 

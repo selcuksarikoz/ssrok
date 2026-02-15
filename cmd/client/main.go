@@ -67,7 +67,32 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	printStep(1, "Secure your tunnel (optional)")
+	printStep(1, "Server Configuration")
+	printHint("Protocol for connecting to ssrok server")
+	fmt.Printf(colorBold + "   Use HTTPS? [y/N]: " + colorReset)
+	useHTTPSStr, _ := reader.ReadString('\n')
+	useHTTPSStr = strings.TrimSpace(strings.ToLower(useHTTPSStr))
+
+	useHTTPS := false
+	if useHTTPSStr == "y" || useHTTPSStr == "yes" {
+		useHTTPS = true
+		printHint("Using HTTPS/WSS protocol")
+	} else {
+		printHint("Using HTTP/WS protocol")
+	}
+
+	// Update server URL protocol based on user choice
+	if useHTTPS && !strings.HasPrefix(serverURL, "https://") {
+		serverURL = strings.Replace(serverURL, "http://", "https://", 1)
+		if !strings.HasPrefix(serverURL, "https://") {
+			serverURL = "https://" + serverURL
+		}
+	} else if !useHTTPS && strings.HasPrefix(serverURL, "https://") {
+		serverURL = strings.Replace(serverURL, "https://", "http://", 1)
+	}
+	fmt.Println()
+
+	printStep(2, "Secure your tunnel (optional)")
 	printHint("Leave empty for no password protection - anyone with the URL can access")
 	printHint("Set a password to require authentication via login page")
 	fmt.Print(colorBold + "   Password: " + colorReset)
@@ -87,7 +112,7 @@ func main() {
 	}
 	fmt.Println()
 
-	printStep(2, "Set rate limiting (0 = unlimited)")
+	printStep(3, "Set rate limiting (0 = unlimited)")
 	printHint("Requests per minute per IP address. 0 disables rate limiting.")
 	fmt.Printf(colorBold+"   Requests per minute [%d]: "+colorReset, constants.DefaultRateLimit)
 	rateLimitStr, _ := reader.ReadString('\n')
@@ -111,7 +136,7 @@ func main() {
 	}
 	fmt.Println()
 
-	printStep(3, "Connecting to server...")
+	printStep(4, "Connecting to server...")
 	fmt.Println(colorDim + "   Initializing secure tunnel..." + colorReset)
 
 	config := protocol.ConfigRequest{
@@ -152,13 +177,21 @@ func main() {
 	fmt.Println()
 
 	wsURL := resp.URL
-	// WebSocket protocol should match server's protocol
-	// wss:// for HTTPS, ws:// for HTTP
-	if strings.HasPrefix(wsURL, "https://") {
-		wsURL = "wss://" + strings.TrimPrefix(wsURL, "https://")
+	// Use the same protocol choice as user selected for WebSocket
+	if useHTTPS {
+		// Force wss:// for HTTPS servers
+		if strings.HasPrefix(wsURL, "http://") {
+			wsURL = strings.Replace(wsURL, "http://", "wss://", 1)
+		} else if !strings.HasPrefix(wsURL, "wss://") {
+			wsURL = "wss://" + strings.TrimPrefix(wsURL, "https://")
+		}
 	} else {
-		// Default to ws:// for http or unknown protocols
-		wsURL = "ws://" + strings.TrimPrefix(wsURL, "http://")
+		// Force ws:// for HTTP servers
+		if strings.HasPrefix(wsURL, "https://") {
+			wsURL = strings.Replace(wsURL, "https://", "ws://", 1)
+		} else if !strings.HasPrefix(wsURL, "ws://") {
+			wsURL = "ws://" + strings.TrimPrefix(wsURL, "http://")
+		}
 	}
 	tunnelUUID := resp.UUID
 	if tunnelUUID == "" {
