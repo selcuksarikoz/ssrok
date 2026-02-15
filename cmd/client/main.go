@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -35,8 +37,8 @@ const (
 
 func printBanner() {
 	fmt.Println()
-	fmt.Printf("  %s%sssrok%s %sv1.0%s\n", colorBold, colorCyan, colorReset, colorDim, colorReset)
-	fmt.Printf("  %sSecure Ephemeral Reverse Proxy%s\n", colorDim, colorReset)
+	fmt.Printf("  %s%sssrok%s %sv%s%s\n", constants.ColorBold, constants.ColorCyan, constants.ColorReset, constants.ColorBold, constants.Version, constants.ColorReset)
+	fmt.Printf("  %sSecure Ephemeral Reverse Proxy%s\n", constants.ColorDim, constants.ColorReset)
 	fmt.Println()
 }
 
@@ -57,6 +59,48 @@ func printSep() {
 }
 
 func main() {
+	versionFlag := flag.Bool("version", false, "show version")
+	updateFlag := flag.Bool("update", false, "update ssrok via brew")
+	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("  %s%sssrok%s %sv%s%s\n", constants.ColorBold, constants.ColorCyan, constants.ColorReset, constants.ColorBold, constants.Version, constants.ColorReset)
+		fmt.Printf("  %sSecure Ephemeral Reverse Proxy%s\n", constants.ColorDim, constants.ColorReset)
+		os.Exit(0)
+	}
+
+	if *updateFlag {
+		fmt.Println("  Checking for updates via Homebrew...")
+
+		checkCmd := exec.Command("brew", "--version")
+		if err := checkCmd.Run(); err != nil {
+			fmt.Printf("  %s⚠ Homebrew not found. Please install Homebrew first:%s\n", constants.ColorYellow, constants.ColorReset)
+			fmt.Println("  https://brew.sh")
+			os.Exit(1)
+		}
+
+		fmt.Println("  Running: brew update && brew upgrade ssrok")
+		fmt.Println()
+
+		cmd := exec.Command("brew", "update")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
+
+		cmd = exec.Command("brew", "upgrade", "ssrok")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("  %s⚠ Upgrade failed or ssrok not installed%s\n", constants.ColorYellow, constants.ColorReset)
+			fmt.Println("  Try: brew install ssrok")
+			os.Exit(1)
+		}
+
+		fmt.Println()
+		fmt.Printf("  %s✓ Update complete!%s\n", constants.ColorGreen, constants.ColorReset)
+		os.Exit(0)
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Println(constants.MsgUsage)
 		fmt.Println(constants.MsgExample)

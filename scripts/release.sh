@@ -19,7 +19,7 @@ if [ -z "$BUMP_TYPE" ]; then
   exit 1
 fi
 
-CURRENT_VERSION=$(grep "^VERSION ?=" Makefile | sed 's/.*= *//')
+CURRENT_VERSION=$(grep "^VERSION :=" Makefile | sed 's/.*= *//')
 
 IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
 MAJOR=${VERSION_PARTS[0]}
@@ -36,14 +36,15 @@ NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 
 echo "Bumping version: $CURRENT_VERSION → $NEW_VERSION"
 
-sed -i '' "s/^VERSION ?=.*/VERSION ?= $NEW_VERSION/" Makefile
+sed -i '' "s/^VERSION :=.*/VERSION := $NEW_VERSION/" Makefile
+sed -i '' "s/Version = \".*\"/Version = \"$NEW_VERSION\"/" internal/constants/constants.go
 
 echo "Building macOS binaries..."
 
 mkdir -p dist
 
-GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.Version=$NEW_VERSION -s -w" -o dist/ssrok-darwin-arm64 ./cmd/client
-GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.Version=$NEW_VERSION -s -w" -o dist/ssrok-darwin-amd64 ./cmd/client
+GOOS=darwin GOARCH=arm64 go build -ldflags "-X ssrok/internal/constants.Version=$NEW_VERSION -s -w" -o dist/ssrok-darwin-arm64 ./cmd/client
+GOOS=darwin GOARCH=amd64 go build -ldflags "-X ssrok/internal/constants.Version=$NEW_VERSION -s -w" -o dist/ssrok-darwin-amd64 ./cmd/client
 
 echo "Calculating SHA256 checksums..."
 

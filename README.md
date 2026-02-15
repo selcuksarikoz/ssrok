@@ -50,22 +50,18 @@ ssrok localhost:8080
 ssrok 192.168.1.5:8000
 ```
 
-You'll get a Magic URL and a Raw URL:
+You'll get a Magic URL and a Public URL:
 
 ```
-╔══════════════════════════════════════════════════════════╗
-║                    🚀 Tunnel Active                      ║
-╚══════════════════════════════════════════════════════════╝
+   magic url:  https://ssrok.onrender.com/abc123?token=xyz
+   public url: https://ssrok.onrender.com/abc123
 
-   Magic URL: http://localhost/UUID?token=TOKEN
-   Raw URL:   http://localhost/UUID
-
-   Local:     http://localhost:3000
-   Expires:   05:30 (1 hour)
+   local:      http://localhost:3000
+   expires:    60 min
 ```
 
 - **Magic URL** — Direct access, no password required
-- **Raw URL** — Requires password (if set)
+- **Public URL** — Requires password (if set)
 
 ## Configuration
 
@@ -99,7 +95,7 @@ cp env.prod.example .env
 
 Edit `.env` to set your production values:
 
-- `SSROK_DOMAIN`: Set your public domain
+- `SSROK_SERVER`: Set your public server URL
 - `SSROK_ENABLE_TLS`: Enable if handling SSL directly (otherwise let Nginx/Cloudflare handle headers)
 
 **Note:**
@@ -130,7 +126,7 @@ make build-script
 ```
 ┌─────────────┐     WebSocket/yamux     ┌─────────────┐      HTTP       ┌─────────────┐
 │   Client    │ ◄─────────────────────► │   Server    │ ◄────────────► │  Visitor    │
-│ (ssrok CLI) │    Token Required       │  (:8080)    │   Token/Pass   │ (Browser)   │
+│ (ssrok CLI) │    Token Required       │  (:80)     │   Token/Pass   │ (Browser)   │
 └──────┬──────┘                         └─────────────┘                └─────────────┘
        │
        └──── localhost:3000
@@ -156,7 +152,6 @@ Session logs per-tunnel:
 | ------- | --------------------------------------------------- |
 | macOS   | `~/Library/Logs/ssrok/{uuid}.log`                   |
 | Linux   | `~/.local/share/ssrok/logs/{uuid}.log`              |
-| Windows | `%USERPROFILE%\AppData\Local\ssrok\logs\{uuid}.log` |
 
 ## API
 
