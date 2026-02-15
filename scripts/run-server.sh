@@ -5,8 +5,8 @@ set -e
 echo "Running ssrok server..."
 
 # Set default environment variables
-export PORT=${PORT:-8080}
-export SSROK_HOST=${SSROK_HOST:-"http://localhost:8080"}
+export PORT=${PORT:-80}
+export SSROK_HOST=${SSROK_HOST:-"http://localhost"}
 
 echo "PORT: $PORT"
 echo "SSROK_HOST: $SSROK_HOST"
