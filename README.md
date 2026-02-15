@@ -2,7 +2,9 @@
 
 **Secure, ephemeral reverse proxy tunnels for developers.**
 
-Expose your local development server to the internet with a secure, time-limited URL. Perfect for testing webhooks, sharing work-in-progress with clients, or quick demos.
+Expose your local development server to the internet with a secure, time-limited URL. Perfect for testing webhooks, sharing work-in-progress with clients, quick demos, or **developing APIs**. You can send requests to your local API endpoints directly using **curl**, **Postman**, or any other HTTP client via the public URL.
+
+> **Note:** A free public instance is available at [ssrok.onrender.com](https://ssrok.onrender.com). Please be aware that this runs on a free tier infrastructure, which may experience cold starts or resource limitations.
 
 ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
@@ -58,11 +60,56 @@ brew install ssrok
 
 ### Build from Source
 
+You can build the client and server binaries manually using the provided Makefile.
+
 ```bash
 git clone https://github.com/selcuksarikoz/ssrok.git
 cd ssrok
+
+# Build both client and server
 make build
+
+# Build individually
+make build-client   # output: ./ssrok
+make build-server   # output: ./ssrok-server
 ```
+
+### Binary Installation
+
+After building, you can install the binaries to your system path to use them globally.
+
+**Client:**
+
+```bash
+sudo mv ssrok /usr/local/bin/
+```
+
+**Server:**
+
+```bash
+sudo mv ssrok-server /usr/local/bin/
+```
+
+Alternatively, you can use the make command to install both:
+
+```bash
+sudo make install
+```
+
+## Self-Hosting
+
+You have the freedom to host your own `ssrok` server for complete control over your data and infrastructure.
+
+1.  **Build the Server**: Run `make build-server` to generate the `ssrok-server` binary.
+2.  **Deploy**: Upload the `ssrok-server` binary to your VPS or cloud server.
+3.  **Run**: Execute the binary on your server.
+
+```bash
+# Example run
+./ssrok-server
+```
+
+Make sure to configure the Environment Variables (see below) to match your domain and requirement.
 
 ## Features
 
