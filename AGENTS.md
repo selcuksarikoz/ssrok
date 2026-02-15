@@ -7,6 +7,7 @@ Development standards and best practices for ssrok.
 ## Core Principles
 
 ### DRY (Don't Repeat Yourself)
+
 - Extract reusable logic into functions/packages
 - Single source of truth for all configuration
 - Use `internal/utils/` for shared code
@@ -30,13 +31,16 @@ cmd/
 
 internal/
   constants/       # Configuration constants
+  logger/          # Structured logging
   security/        # Security implementations
   session/         # Session management
   tunnel/          # Tunnel logic
+  ui/              # Frontend templates and assets
   utils/           # Shared utilities
 ```
 
 ### File Rules
+
 - Max 300 lines per file
 - One struct per file (unless tightly coupled)
 - Define interfaces near usage
@@ -45,6 +49,7 @@ internal/
 ## Security Requirements
 
 ### Mandatory
+
 - All input validated in `security/validator.go`
 - Token auth for all endpoints
 - Brute force protection (5 attempts = 15min block)
@@ -55,6 +60,7 @@ internal/
 - Session timeout (1 hour)
 
 ### Checklist
+
 - [ ] All endpoints authenticated
 - [ ] Input validation
 - [ ] Rate limiting enabled
@@ -67,6 +73,7 @@ internal/
 ## Performance
 
 ### Rules
+
 - Use `sync.Pool` for buffer reuse
 - Buffer size: 128KB default
 - TCP_NODELAY enabled
@@ -74,6 +81,7 @@ internal/
 - Zero-allocation hot paths
 
 ### Checklist
+
 - [ ] Buffer pooling
 - [ ] No allocations in loops
 - [ ] Efficient data structures
@@ -83,6 +91,7 @@ internal/
 ## Code Standards
 
 ### Naming
+
 - Packages: lowercase, single word (`security`, not `security_utils`)
 - Types: PascalCase (`ConnectionLimiter`)
 - Functions: CamelCase, verb-first (`ValidateToken`)
@@ -90,6 +99,7 @@ internal/
 - Constants: PascalCase exported, UPPER_SNAKE unexported
 
 ### Error Handling
+
 ```go
 // Good
 if err := doSomething(); err != nil {
@@ -101,6 +111,7 @@ doSomething() // ignoring error
 ```
 
 ### Logging
+
 - Structured JSON format
 - No sensitive data (passwords, tokens)
 - Include session/request IDs

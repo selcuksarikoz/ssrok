@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
@@ -550,6 +551,11 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !authenticated {
+		// Fetch tunnel for logging purposes (ignoring errors if not active yet)
+		tunnelMu.RLock()
+		tLog, okLog := tunnels[tunnelUUID]
+		tunnelMu.RUnlock()
+
 		if r.Method == http.MethodPost {
 			r.Body = http.MaxBytesReader(w, r.Body, 4096)
 
@@ -566,6 +572,13 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			// If session has no password (token-only), VerifyPassword returns false
 			if sess.VerifyPassword(password) {
 				log.Printf("✅ User logged in (Password): %s", clientIP)
+				if okLog {
+					tLog.SendLog("=> login is done")
+					// Send active user count or notification
+					// Just notify a user connected for now as requested
+					tLog.SendLog(fmt.Sprintf("=> User connected: %s", clientIP))
+				}
+
 				bruteProtector.RecordSuccess(clientIP)
 				if auditLogger != nil {
 					auditLogger.LogAuthSuccess(clientIP, tunnelUUID)
@@ -582,6 +595,9 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, r.URL.Path, http.StatusFound)
 				return
 			}
+			if okLog {
+				tLog.SendLog("=> password incorrect")
+			}
 			bruteProtector.RecordFailure(clientIP)
 			if auditLogger != nil {
 				auditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid password")
@@ -596,6 +612,9 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if okLog {
+			tLog.SendLog("=> login page opened")
+		}
 		csrf := session.SignCSRFToken(session.GenerateCSRFToken())
 		renderTemplate(w, "login.html", map[string]interface{}{
 			"Title":     "Login",
@@ -635,7 +654,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		r.Body = http.MaxBytesReader(w, r.Body, constants.MaxBodySize)
 	}
 
-	stream, err := t.Session.OpenStream()
+	stream, err := t.OpenProxyStream()
 	if err != nil {
 		log.Printf("Proxy: failed to open stream: %v", err)
 		w.WriteHeader(http.StatusServiceUnavailable)

@@ -25,15 +25,16 @@ var upgrader = websocket.Upgrader{
 }
 
 type Tunnel struct {
-	UUID      string
-	WSConn    *websocket.Conn
-	Session   *yamux.Session
-	LocalPort int
-	UseTLS    bool
-	mu        sync.RWMutex
-	isClosed  bool
-	log       *logger.Logger
-	localAddr string
+	UUID        string
+	WSConn      *websocket.Conn
+	Session     *yamux.Session
+	LocalPort   int
+	UseTLS      bool
+	mu          sync.RWMutex
+	isClosed    bool
+	log         *logger.Logger
+	localAddr   string
+	LogCallback func(string)
 }
 
 func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool) *Tunnel {
@@ -98,6 +99,32 @@ func (t *Tunnel) Process() error {
 
 func (t *Tunnel) handleStream(stream net.Conn) {
 	defer stream.Close()
+
+	// Read stream type
+	typeBuf := make([]byte, 1)
+	if _, err := io.ReadFull(stream, typeBuf); err != nil {
+		return
+	}
+
+	if typeBuf[0] == constants.StreamTypeLog {
+		// Log message stream
+		msg, err := io.ReadAll(stream)
+		if err == nil && len(msg) > 0 {
+			if t.LogCallback != nil {
+				t.LogCallback(string(msg))
+			} else {
+				// Default fallback
+				fmt.Printf("Remote: %s\n", string(msg))
+			}
+		}
+		return
+	}
+
+	// Constants.StreamTypeProxy or unknown (treat as proxy for robustness if feasible, but better strict)
+	// If it's not proxy, we could error, but let's assume it is normal traffic if not log.
+	if typeBuf[0] != constants.StreamTypeProxy {
+		return
+	}
 
 	var localConn net.Conn
 	var err error
@@ -301,7 +328,50 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 		UseTLS:    useTLS,
 		log:       log,
 		localAddr: targetAddr,
+		LogCallback: func(msg string) {
+			fmt.Printf("  %s%s%s\n", constants.ColorCyan, msg, constants.ColorReset)
+		},
 	}
 
 	return tunnel, nil
+}
+
+// SendLog sends a log message to the client
+func (t *Tunnel) SendLog(message string) error {
+	if t.Session == nil {
+		return fmt.Errorf("session not initialized")
+	}
+	stream, err := t.Session.OpenStream()
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+
+	// Write type byte
+	if _, err := stream.Write([]byte{constants.StreamTypeLog}); err != nil {
+		return err
+	}
+	// Write message
+	if _, err := stream.Write([]byte(message)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// OpenProxyStream opens a stream for proxying HTTP traffic
+func (t *Tunnel) OpenProxyStream() (net.Conn, error) {
+	if t.Session == nil {
+		return nil, fmt.Errorf("session not initialized")
+	}
+	stream, err := t.Session.OpenStream()
+	if err != nil {
+		return nil, err
+	}
+
+	// Write type byte
+	if _, err := stream.Write([]byte{constants.StreamTypeProxy}); err != nil {
+		stream.Close()
+		return nil, err
+	}
+	return stream, nil
 }

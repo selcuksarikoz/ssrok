@@ -23,6 +23,8 @@ const (
 	CopyBufferSize  = 524288 // 512KB
 	DialTimeout     = 5 * time.Second
 	CleanupInterval = 30 * time.Second
+	StreamTypeProxy = 0x00
+	StreamTypeLog   = 0x01
 )
 
 const (
