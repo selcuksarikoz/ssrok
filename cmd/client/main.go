@@ -253,7 +253,15 @@ func main() {
 
 	go func() {
 		if err := t.Process(); err != nil {
-			fmt.Printf("\n  %s✗ connection lost: %v%s\n", colorRed, err, colorReset)
+			errStr := err.Error()
+			// Suppress raw websocket closure errors for cleaner exit
+			if strings.Contains(errStr, "websocket: close 1006") ||
+				strings.Contains(errStr, "EOF") ||
+				strings.Contains(errStr, "connection reset") {
+				fmt.Printf("\n  %s✗ Connection to server lost%s\n", colorRed, colorReset)
+			} else {
+				fmt.Printf("\n  %s✗ connection lost: %v%s\n", colorRed, err, colorReset)
+			}
 			os.Exit(1)
 		}
 	}()

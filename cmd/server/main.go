@@ -751,12 +751,6 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		})
 		return
 	}
-	// Defer closing resp.Body only if we don't hijack the connection
-	defer func() {
-		if resp != nil && resp.Body != nil {
-			resp.Body.Close()
-		}
-	}()
 
 	// Handle WebSocket/Upgrade (101 Switching Protocols)
 	if resp.StatusCode == http.StatusSwitchingProtocols {
@@ -781,23 +775,67 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		}
 		defer conn.Close() // Close the hijacked client connection
 
-		// Release the buffered reader as we're taking over the raw connection
-		tunnel.PutBufioReader(br)
-		resp.Body = nil // Prevent deferred resp.Body.Close() from closing the underlying stream
+		br := tunnel.GetBufioReader(stream)
+		defer tunnel.PutBufioReader(br) // recycled when function returns
 
-		// Stream from Client -> Tunnel (stream)
-		go func() {
-			// We can copy from conn directly to stream
-			io.Copy(stream, conn)
+		resp, err := http.ReadResponse(br, r)
+		if err != nil {
+			log.Printf("Proxy: Failed to read response from tunnel: %v", err)
+			w.WriteHeader(http.StatusBadGateway)
+			renderTemplate(w, "error.html", map[string]interface{}{
+				"Title":   "Bad Gateway",
+				"Message": "Failed to read response from the local server. The application may have crashed or closed the connection unexpectedly.",
+			})
+			return
+		}
+
+		// Defer closing resp.Body (LIFO: runs before PutBufioReader)
+		defer func() {
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
 		}()
 
-		// Stream from Tunnel (resp.Body or br) -> Client (conn)
-		io.Copy(conn, stream) // Copy directly from the underlying stream
-		return
+		// Handle WebSocket/Upgrade (101 Switching Protocols)
+		if resp.StatusCode == http.StatusSwitchingProtocols {
+			// Copy response headers
+			for key, values := range resp.Header {
+				for _, value := range values {
+					w.Header().Add(key, value)
+				}
+			}
+			w.WriteHeader(http.StatusSwitchingProtocols)
+
+			// Hijack the connection to allow raw TCP bidirectional stream
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				log.Printf("Proxy: server doesn't support hijacking")
+				return
+			}
+			conn, _, err := hj.Hijack()
+			if err != nil {
+				log.Printf("Proxy: hijack error: %v", err)
+				return
+			}
+			defer conn.Close() // Close the hijacked client connection
+
+			// Prevent deferred resp.Body.Close() from closing the underlying stream (we handle it)
+			resp.Body = nil
+
+			// Stream from Client -> Tunnel (stream)
+			go func() {
+				// We can copy from conn directly to stream
+				io.Copy(stream, conn)
+			}()
+
+			// Stream from Tunnel (br) -> Client (conn)
+			// Use br to capture any bytes extracted from stream but buffered
+			io.Copy(conn, br)
+			return
+		}
 	}
 
 	if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable {
-		tunnel.PutBufioReader(br)
 		w.WriteHeader(resp.StatusCode)
 		renderTemplate(w, "error.html", map[string]interface{}{
 			"Title":   "Local Server Unreachable",
@@ -836,7 +874,6 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		io.CopyBuffer(w, resp.Body, copyBuf)
 	}
 	tunnel.PutBuffer(copyBuf)
-	tunnel.PutBufioReader(br)
 }
 
 func cleanup() {
