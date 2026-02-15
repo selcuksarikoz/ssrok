@@ -79,6 +79,8 @@ func (st *RedisStore) Save(session *Session) {
 	key := constants.RedisKeyPrefix + session.UUID
 	if err := st.client.Set(st.ctx, key, jsonData, ttl).Err(); err != nil {
 		log.Printf("Failed to save session to Redis: %v", err)
+	} else {
+		log.Printf("💾 Saving session to Redis: %s (TTL: %v)", session.UUID, ttl)
 	}
 }
 
@@ -93,6 +95,8 @@ func (st *RedisStore) Get(uuid string) (*Session, bool) {
 		log.Printf("Failed to get session from Redis: %v", err)
 		return nil, false
 	}
+
+	log.Printf("🔍 Got session from Redis: %s", uuid)
 
 	var sd SessionData
 	if err := json.Unmarshal([]byte(data), &sd); err != nil {

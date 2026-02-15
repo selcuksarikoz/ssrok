@@ -82,6 +82,7 @@ func (st *MemoryStore) OnExpire(fn func(uuid string)) {
 }
 
 func (st *MemoryStore) Save(session *Session) {
+	log.Printf("💾 Saving session to memory: %s", session.UUID)
 	st.sessions.Store(session.UUID, session)
 }
 

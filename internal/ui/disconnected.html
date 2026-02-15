@@ -1,0 +1,71 @@
+{{define "content"}}
+<div class="glass-card animate-fade-in w-full max-w-md p-8 rounded-2xl">
+    <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full glass-card mb-4 bg-red-500/10 border-red-500/30">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+        </div>
+        <h1 class="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-red-600">
+            Tunnel Disconnected
+        </h1>
+        <p class="text-gray-400">
+            The tunnel client is not connected to the server.
+        </p>
+    </div>
+
+    <div class="space-y-4">
+        <div class="bg-black/30 w-full p-4 rounded-xl border border-white/10">
+            <p class="text-sm text-gray-300 mb-3">Why is my tunnel not connected?</p>
+            <ul class="text-left text-xs text-gray-400 space-y-2">
+                <li class="flex items-start gap-2">
+                    <span class="text-red-400 mt-0.5">•</span>
+                    <span><strong class="text-gray-300">Client not running</strong> — Start the ssrok client on your machine</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-red-400 mt-0.5">•</span>
+                    <span><strong class="text-gray-300">Client disconnected</strong> — The client may have been stopped or lost connection</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-red-400 mt-0.5">•</span>
+                    <span><strong class="text-gray-300">Session expired</strong> — Tunnels expire after {{.ExpiresIn}} of inactivity</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-red-400 mt-0.5">•</span>
+                    <span><strong class="text-gray-300">Wrong port</strong> — The local server may be running on a different port</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-red-400 mt-0.5">•</span>
+                    <span><strong class="text-gray-300">Network issues</strong> — Firewall or network restrictions may be blocking the connection</span>
+                </li>
+            </ul>
+        </div>
+
+        <div class="bg-black/20 w-full p-4 rounded-xl border border-white/5">
+            <p class="text-xs text-gray-500 mb-2">To reconnect:</p>
+            <code class="text-xs text-gray-400 block bg-black/40 p-2 rounded-lg overflow-x-auto">
+                ssrok {{.Port}}
+            </code>
+        </div>
+
+        <div class="flex flex-col gap-3 mt-6">
+            <button onclick="window.location.reload()" class="glass-button w-full py-3 px-4 rounded-xl font-medium text-white flex items-center justify-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Retry Connection
+            </button>
+
+            <a href="/" class="w-full py-3 px-4 rounded-xl font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center justify-center">
+                Back to Home
+            </a>
+        </div>
+    </div>
+
+    <div class="mt-8 text-center">
+        <p class="text-xs text-gray-500">
+            Powered by <span class="text-gray-400 font-semibold">ssrok</span>
+        </p>
+    </div>
+</div>
+{{end}}

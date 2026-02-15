@@ -115,7 +115,7 @@ func loadTemplates() (map[string]*template.Template, error) {
 		return nil, err
 	}
 
-	pages := []string{"login.html", "ratelimit.html", "notfound.html", "home.html", "error.html"}
+	pages := []string{"login.html", "ratelimit.html", "notfound.html", "home.html", "error.html", "disconnected.html"}
 
 	for _, page := range pages {
 		pageContent, err := ui.Templates.ReadFile(page)
@@ -355,6 +355,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		LastRequest:  make(map[string]time.Time),
 	}
 
+	log.Printf("🔔 Register: New tunnel created: %s", tunnelUUID)
 	store.Save(sess)
 
 	scheme := "http"
@@ -433,6 +434,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	sess.Conn = conn
 	sess.TunnelActive = true
+
+	log.Printf("🔔 WebSocket: Client connected, saving session: %s", tunnelUUID)
+	store.Save(sess)
 
 	t := tunnel.NewTunnel(tunnelUUID, conn, sess.Port, sess.UseTLS)
 
@@ -657,17 +661,17 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !sess.TunnelActive || sess.Conn == nil {
-		http.Error(w, constants.MsgTunnelNotActive, http.StatusServiceUnavailable)
-		return
-	}
-
 	tunnelMu.RLock()
-	t, ok := tunnels[tunnelUUID]
+	t, tunnelExists := tunnels[tunnelUUID]
 	tunnelMu.RUnlock()
 
-	if !ok {
-		http.Error(w, constants.MsgTunnelNotActive, http.StatusServiceUnavailable)
+	if !sess.TunnelActive || !tunnelExists {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		renderTemplate(w, "disconnected.html", map[string]interface{}{
+			"Title":     "Tunnel Disconnected",
+			"Port":      sess.Port,
+			"ExpiresIn": time.Until(sess.ExpiresAt).Round(time.Minute).String(),
+		})
 		return
 	}
 
