@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"io"
 	"log"
@@ -34,6 +33,7 @@ var (
 	tunnels        = make(map[string]*tunnel.Tunnel)
 	tunnelMu       = &sync.RWMutex{}
 	host           string
+	serverPort     string
 	serverUseTLS   bool
 	templates      map[string]*template.Template
 	connLimiter    *security.ConnectionLimiter
@@ -156,6 +156,14 @@ func gzipMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Skip gzip for tunnel proxy requests — upstream handles its own encoding
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		parts := strings.SplitN(path, "/", 2)
+		if len(parts) > 0 && len(parts[0]) == 36 {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		gz := tunnel.GetGzipWriter(w)
 
 		w.Header().Set("Content-Encoding", "gzip")
@@ -177,6 +185,11 @@ func main() {
 	host = strings.TrimPrefix(host, "http://")
 	host = strings.TrimPrefix(host, "https://")
 
+	// Strip port from host if present (we'll use serverPort separately)
+	if idx := strings.LastIndex(host, ":"); idx > 0 {
+		host = host[:idx]
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc(constants.EndpointRegister, handleRegister)
 	mux.HandleFunc(constants.EndpointWebSocket, handleWebSocket)
@@ -186,11 +199,11 @@ func main() {
 	handler = security.SecurityHeaders(handler)
 	handler = gzipMiddleware(handler)
 
-	port := utils.GetEnv("PORT", constants.DefaultPort)
+	serverPort = utils.GetEnv("PORT", constants.DefaultPort)
 	certFile := utils.GetEnv("SSROK_CERT_FILE", "certs/server.crt")
 	keyFile := utils.GetEnv("SSROK_KEY_FILE", "certs/server.key")
 
-	log.Printf("🚀 ssrok server starting on :%s", port)
+	log.Printf("🚀 ssrok server starting on :%s", serverPort)
 
 	enableTLS := strings.ToLower(utils.GetEnv("SSROK_ENABLE_TLS", "false")) == "true"
 	useTLS := false
@@ -214,7 +227,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	server = &http.Server{
-		Addr:              ":" + port,
+		Addr:              ":" + serverPort,
 		Handler:           handler,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -290,10 +303,15 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	tunnelUUID := uuid.New().String()
 	token := uuid.New().String()
 
+	var passwordHash string
+	if req.Password != "" {
+		passwordHash = utils.HashSHA256(req.Password)
+	}
+
 	sess := &session.Session{
 		UUID:         tunnelUUID,
 		Port:         req.Port,
-		PasswordHash: utils.HashSHA256(req.Password),
+		PasswordHash: passwordHash,
 		TokenHash:    utils.HashSHA256(token),
 		RateLimit:    req.RateLimit,
 		UseTLS:       req.UseTLS,
@@ -310,12 +328,14 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		scheme = "https"
 	}
 
-	var tunnelURL string
-	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
-		tunnelURL = fmt.Sprintf("%s/%s", host, tunnelUUID)
-	} else {
-		tunnelURL = fmt.Sprintf("%s://%s/%s", scheme, host, tunnelUUID)
+	// Build host with port for URL
+	urlHost := host
+	if !isStandardPort(scheme, serverPort) {
+		urlHost = host + ":" + serverPort
 	}
+
+	var tunnelURL string
+	tunnelURL = utils.ConstructURL(scheme, urlHost, tunnelUUID)
 
 	resp := protocol.ConfigResponse{
 		UUID:      tunnelUUID,
@@ -621,7 +641,8 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	buf.WriteString(" HTTP/1.1\r\n")
 
 	for key, values := range r.Header {
-		if !hopByHopHeaders[key] && !sensitiveRequestHeaders[key] {
+		if !hopByHopHeaders[key] && !sensitiveRequestHeaders[key] &&
+			key != "Accept-Encoding" && key != "Host" {
 			for _, value := range values {
 				buf.WriteString(key)
 				buf.WriteString(": ")
@@ -631,8 +652,12 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		}
 	}
 
-	buf.WriteString("Host: localhost:")
-	buf.WriteString(strconv.Itoa(t.LocalPort))
+	// Set Host header - use just hostname for standard ports
+	buf.WriteString("Host: localhost")
+	if !utils.IsDefaultPort(strconv.Itoa(t.LocalPort)) {
+		buf.WriteString(":")
+		buf.WriteString(strconv.Itoa(t.LocalPort))
+	}
 	buf.WriteString("\r\n")
 
 	clientIP := security.GetClientIP(r)
@@ -718,4 +743,14 @@ func cleanup() {
 		log.Printf("Closing tunnel: %s", uuid)
 		t.Close()
 	}
+}
+
+func isStandardPort(scheme, port string) bool {
+	if scheme == "http" && port == "80" {
+		return true
+	}
+	if scheme == "https" && port == "443" {
+		return true
+	}
+	return false
 }

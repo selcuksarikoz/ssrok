@@ -3,10 +3,13 @@
 /ssrok
 /ssrok-server
 /main
+/ssrok-prod
+/ssrok-server-prod
 .envrc
 
 # Env
 .env
+.env.prod
 
 # Logs
 *.log

@@ -15,30 +15,49 @@ build-server:
 	@echo "Building ssrok server..."
 	go build $(LDFLAGS) -o ssrok-server ./cmd/server
 
+# Production builds
+build-prod: build-client-prod build-server-prod
+	@echo "Production builds complete."
+
+build-client-prod:
+	@echo "Building production client..."
+	@if [ -f .env.prod ]; then \
+		export $$(cat .env.prod | grep -v '^#' | xargs) && \
+		echo "Embedding Server URL: $$SSROK_SERVER" && \
+		go build -ldflags "-X 'ssrok/internal/constants.DefaultServerURL=$$SSROK_SERVER' -s -w" -o ssrok-prod ./cmd/client; \
+	else \
+		echo "Error: .env.prod file not found"; \
+		exit 1; \
+	fi
+
+build-server-prod:
+	@echo "Building production server..."
+	go build $(LDFLAGS) -o ssrok-server-prod ./cmd/server
+
 release:
 	@echo "Building release binaries..."
 	mkdir -p dist
-	
+
 	# macOS ARM64
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/ssrok-darwin-arm64 ./cmd/client
-	
+
 	# macOS AMD64
 	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/ssrok-darwin-amd64 ./cmd/client
-	
+
 	# Linux ARM64
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/ssrok-linux-arm64 ./cmd/client
-	
+
 	# Linux AMD64
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/ssrok-linux-amd64 ./cmd/client
-	
+
 	# Windows AMD64
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/ssrok-windows-amd64.exe ./cmd/client
-	
+
 	# Server binaries
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/ssrok-server-darwin-arm64 ./cmd/server
 	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/ssrok-server-darwin-amd64 ./cmd/server
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/ssrok-server-linux-amd64 ./cmd/server
-	
+
 	@echo "Release binaries built in dist/"
 	@echo "Generate SHA256 checksums:"
 	@cd dist && shasum -a 256 * > checksums.txt

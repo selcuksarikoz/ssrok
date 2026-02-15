@@ -6,16 +6,23 @@ import (
 )
 
 const (
-	DefaultHost      = "localhost:8080"
-	DefaultPort      = "8080"
-	DefaultServerURL = "http://localhost:8080"
-	MinPort          = 1
-	MaxPort          = 65535
-	BufferSize       = 131072 // 128KB
-	WSBufferSize     = 131072 // 128KB
-	CopyBufferSize   = 524288 // 512KB
-	DialTimeout      = 5 * time.Second
-	CleanupInterval  = 30 * time.Second
+	DefaultHost = "localhost"
+	DefaultPort = "80"
+)
+
+var (
+	// DefaultServerURL can be overwritten at build time using -ldflags
+	DefaultServerURL = "http://localhost"
+)
+
+const (
+	MinPort         = 1
+	MaxPort         = 65535
+	BufferSize      = 131072 // 128KB
+	WSBufferSize    = 131072 // 128KB
+	CopyBufferSize  = 524288 // 512KB
+	DialTimeout     = 5 * time.Second
+	CleanupInterval = 30 * time.Second
 )
 
 const (
