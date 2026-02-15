@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -669,17 +670,37 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 
 	var targetPath string
 	if isPathUUID {
-		// Strip the UUID from the path (parts[0]="", parts[1]="UUID")
-		if len(parts) > 2 {
-			targetPath = "/" + strings.Join(parts[2:], "/")
-		} else {
+		// Robustly strip the /UUID prefix from the path
+		targetPath = strings.TrimPrefix(r.URL.Path, "/"+tunnelUUID)
+		if targetPath == "" {
 			targetPath = "/"
 		}
 	} else {
 		targetPath = r.URL.Path
 	}
 
+	// Redirect to /{UUID}/... if user accessed via cookie fallback (e.g. localhost/dashboard -> localhost/UUID/dashboard)
+	// This ensures canonical URLs and fixes relative path issues.
+	// Only do this for GET requests to avoid disrupting form submissions/APIs.
+	if !isPathUUID && cookieUUID != "" && tunnelUUID == cookieUUID && r.Method == http.MethodGet && extraPath == "" {
+		newPath := "/" + tunnelUUID + r.URL.Path
+		if r.URL.RawQuery != "" {
+			newPath += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, newPath, http.StatusFound)
+		return
+	}
+
 	if extraPath != "" {
+		// If Browser (HTML), redirect to deep link to fix URL bar
+		// e.g. /UUID?token=.../pricing -> /UUID/pricing
+		if strings.Contains(r.Header.Get("Accept"), "text/html") {
+			// Keep the token in the query if simple redirect loses auth?
+			// No, we set a Cookie earlier! So redirect is safe.
+			http.Redirect(w, r, "/"+tunnelUUID+extraPath, http.StatusFound)
+			return
+		}
+
 		// Append the extra path extracted from the token
 		if targetPath == "/" {
 			targetPath = extraPath
@@ -844,6 +865,16 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		return
 	}
 
+	// Rewrite Location header for redirects to include tunnel UUID prefix
+	// This ensures users stay within the /{UUID}/ path namespace instead of escaping to root
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		loc := resp.Header.Get("Location")
+		if loc != "" && strings.HasPrefix(loc, "/") && !strings.HasPrefix(loc, "/"+t.UUID) {
+			// Handle query params if present, don't break them
+			resp.Header.Set("Location", "/"+t.UUID+loc)
+		}
+	}
+
 	for key, values := range resp.Header {
 		if !hopByHopHeaders[key] && !dangerousResponseHeaders[key] && key != "Content-Length" {
 			for _, value := range values {
@@ -854,7 +885,42 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	// Explicitly remove Content-Length to avoid mismatches.
 	w.Header().Del("Content-Length")
 
+	isHTML := strings.Contains(resp.Header.Get("Content-Type"), "text/html")
+
 	w.WriteHeader(resp.StatusCode)
+
+	// Script to enforce /UUID prefix in History API (fixes Next.js and other SPAs)
+	// And Base Tag for relative links.
+	injection := fmt.Sprintf(`<head><base href="/%s/"><script>(function(){var p="/%s";var fp=function(u){if(u&&u.startsWith("/")&&!u.startsWith(p)){return u==="/"?p:p+u;}return u;};var op=history.pushState;history.pushState=function(d,t,u){return op.call(this,d,t,fp(u));};var or=history.replaceState;history.replaceState=function(d,t,u){return or.call(this,d,t,fp(u));};})();</script>`, t.UUID, t.UUID)
+
+	if isHTML {
+		// Full buffering for HTML to ensure robust replacement (avoid chunk boundary issues)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err == nil {
+			// Double quotes replacements
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`src="/`), []byte(fmt.Sprintf(`src="/%s/`, t.UUID)))
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`href="/`), []byte(fmt.Sprintf(`href="/%s/`, t.UUID)))
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`action="/`), []byte(fmt.Sprintf(`action="/%s/`, t.UUID)))
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`"/_next/`), []byte(fmt.Sprintf(`"/%s/_next/`, t.UUID)))
+
+			// Single quotes replacements
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`src='/`), []byte(fmt.Sprintf(`src='/%s/`, t.UUID)))
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`href='/`), []byte(fmt.Sprintf(`href='/%s/`, t.UUID)))
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`action='/`), []byte(fmt.Sprintf(`action='/%s/`, t.UUID)))
+			bodyBytes = bytes.ReplaceAll(bodyBytes, []byte(`'/_next/`), []byte(fmt.Sprintf(`'/%s/_next/`, t.UUID)))
+
+			// Inject Head/Script
+			if split := bytes.SplitN(bodyBytes, []byte("<head>"), 2); len(split) == 2 {
+				bodyBytes = append(split[0], append([]byte(injection), split[1]...)...)
+			} else if split := bytes.SplitN(bodyBytes, []byte("<HEAD>"), 2); len(split) == 2 {
+				bodyBytes = append(split[0], append([]byte(injection), split[1]...)...)
+			}
+
+			w.Write(bodyBytes)
+			return
+		}
+		// If read error, fall through to streaming (unlikely)
+	}
 
 	copyBuf := tunnel.GetBuffer()
 	if flusher, ok := w.(http.Flusher); ok {
