@@ -235,7 +235,7 @@ func main() {
 		log.Fatalf("Failed to load templates: %v", err)
 	}
 
-	host = utils.GetEnv("SSROK_HOST", constants.DefaultHost)
+	host = utils.GetEnv("SSROK_SERVER", constants.DefaultHost)
 	host = strings.TrimPrefix(host, "http://")
 	host = strings.TrimPrefix(host, "https://")
 

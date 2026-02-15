@@ -130,7 +130,7 @@ doSomething() // ignoring error
 - Never hardcode URLs, ports, secrets
 
 ```go
-host := utils.GetEnv("SSROK_HOST", constants.DefaultHost)
+host := utils.GetEnv("SSROK_SERVER", constants.DefaultHost)
 ```
 
 ## Anti-Patterns

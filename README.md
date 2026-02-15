@@ -97,7 +97,7 @@ cp .env.example .env
 | Variable           | Default            | Description          |
 | ------------------ | ------------------ | -------------------- |
 | `PORT`             | `80`               | Server listen port   |
-| `SSROK_HOST`       | `localhost`        | Public hostname      |
+| `SSROK_SERVER`    | `localhost`        | Public hostname      |
 | `SSROK_ENABLE_TLS` | `false`            | Enable built-in TLS  |
 | `SSROK_CERT_FILE`  | `certs/server.crt` | TLS certificate path |
 | `SSROK_KEY_FILE`   | `certs/server.key` | TLS key path         |
