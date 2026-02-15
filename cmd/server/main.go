@@ -589,7 +589,12 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !authenticated && cookieUUID == tunnelUUID && cookieUUID != "" {
-		authenticated = true
+		sessFromCookie, ok := store.Get(cookieUUID)
+		if ok && sessFromCookie != nil {
+			authenticated = true
+			sess = sessFromCookie
+			store.Save(sess)
+		}
 	}
 
 	if !authenticated {
