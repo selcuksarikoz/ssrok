@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -165,12 +166,23 @@ func gzipMiddleware(next http.Handler) http.Handler {
 		}
 
 		gz := tunnel.GetGzipWriter(w)
+		defer tunnel.PutGzipWriter(gz)
 
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Del("Content-Length")
 		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
+	})
+}
 
-		tunnel.PutGzipWriter(gz)
+func recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("🔥 PANIC RECOVERED: %v\nStack Trace:\n%s", err, string(debug.Stack()))
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -196,6 +208,7 @@ func main() {
 	mux.HandleFunc(constants.EndpointRoot, handleTunnel)
 
 	var handler http.Handler = mux
+	handler = recoveryMiddleware(handler)
 	handler = security.SecurityHeaders(handler)
 	handler = gzipMiddleware(handler)
 
