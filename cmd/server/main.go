@@ -100,7 +100,7 @@ func loadTemplates() (map[string]*template.Template, error) {
 		return nil, err
 	}
 
-	pages := []string{"login.html", "ratelimit.html", "notfound.html", "home.html"}
+	pages := []string{"login.html", "ratelimit.html", "notfound.html", "home.html", "error.html"}
 
 	for _, page := range pages {
 		pageContent, err := ui.Templates.ReadFile(page)
@@ -125,8 +125,17 @@ func loadTemplates() (map[string]*template.Template, error) {
 }
 
 func renderTemplate(w http.ResponseWriter, name string, data map[string]interface{}) {
+	tmpl, ok := templates[name]
+	if !ok {
+		// Fallback for missing template - prevents panic
+		log.Printf("Error: Template %s not found", name)
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	templates[name].Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		log.Printf("Error executing template %s: %v", name, err)
+	}
 }
 
 type gzipResponseWriter struct {
@@ -634,7 +643,11 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	stream, err := t.Session.OpenStream()
 	if err != nil {
 		log.Printf("Proxy: failed to open stream: %v", err)
-		http.Error(w, "Failed to open tunnel stream", http.StatusServiceUnavailable)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		renderTemplate(w, "error.html", map[string]interface{}{
+			"Title":   "Tunnel Connection Failed",
+			"Message": "Failed to open a stream to the client tunnel. The client may have disconnected.",
+		})
 		return
 	}
 	defer stream.Close()
@@ -696,7 +709,11 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 
 	if _, err := stream.Write(buf.Bytes()); err != nil {
 		tunnel.PutBytesBuffer(buf)
-		http.Error(w, "Failed to write request", http.StatusServiceUnavailable)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		renderTemplate(w, "error.html", map[string]interface{}{
+			"Title":   "Request Failed",
+			"Message": "Failed to forward request to the local server.",
+		})
 		return
 	}
 	tunnel.PutBytesBuffer(buf)
@@ -713,10 +730,31 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	if err != nil {
 		tunnel.PutBufioReader(br)
 		log.Printf("Proxy: Failed to read response from tunnel: %v", err)
-		http.Error(w, "Bad Gateway", http.StatusBadGateway)
+		w.WriteHeader(http.StatusBadGateway)
+		renderTemplate(w, "error.html", map[string]interface{}{
+			"Title":   "Bad Gateway",
+			"Message": "Failed to read response from the local server. The application may have crashed or closed the connection unexpectedly.",
+		})
 		return
 	}
 	defer resp.Body.Close()
+
+	// Intercept 502/503 from the tunnel client (e.g. "Failed to connect to local server")
+	// treating them as connection errors to show our nice error page
+	if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable {
+		// Read a bit of the body to see if it's our client's error message
+		// Or just always show the error page for 502/503 from tunnel
+
+		// Note from context: The client sends "HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to local server"
+		// So we can check the status code and render our template.
+		tunnel.PutBufioReader(br)
+		w.WriteHeader(resp.StatusCode)
+		renderTemplate(w, "error.html", map[string]interface{}{
+			"Title":   "Local Server Unreachable",
+			"Message": "The tunnel client could not connect to the local server. Please check if your local application is running and the port is correct.",
+		})
+		return
+	}
 
 	for key, values := range resp.Header {
 		if !hopByHopHeaders[key] && !dangerousResponseHeaders[key] {
