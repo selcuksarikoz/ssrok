@@ -722,7 +722,6 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		reqBuf := tunnel.GetBuffer()
 		io.CopyBuffer(stream, r.Body, reqBuf)
 		tunnel.PutBuffer(reqBuf)
-		r.Body.Close()
 	}
 
 	br := tunnel.GetBufioReader(stream)
@@ -768,7 +767,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	copyBuf := tunnel.GetBuffer()
 	if flusher, ok := w.(http.Flusher); ok {
 		for {
-			n, readErr := br.Read(copyBuf)
+			n, readErr := resp.Body.Read(copyBuf)
 			if n > 0 {
 				if _, writeErr := w.Write(copyBuf[:n]); writeErr != nil {
 					break
@@ -780,7 +779,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 			}
 		}
 	} else {
-		io.CopyBuffer(w, br, copyBuf)
+		io.CopyBuffer(w, resp.Body, copyBuf)
 	}
 	tunnel.PutBuffer(copyBuf)
 	tunnel.PutBufioReader(br)
