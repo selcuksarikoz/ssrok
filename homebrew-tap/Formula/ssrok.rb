@@ -1,7 +1,7 @@
 class Ssrok < Formula
   desc "Blazing fast secure reverse proxy tunnel"
   homepage "https://github.com/ssrok/ssrok"
-  version "1.0.6"
+  version "1.0.7"
   
   if OS.mac?
     if Hardware::CPU.arm?
