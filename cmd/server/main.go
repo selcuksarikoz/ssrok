@@ -682,7 +682,9 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 	// Redirect to /{UUID}/... if user accessed via cookie fallback (e.g. localhost/dashboard -> localhost/UUID/dashboard)
 	// This ensures canonical URLs and fixes relative path issues.
 	// Only do this for GET requests to avoid disrupting form submissions/APIs.
-	if !isPathUUID && cookieUUID != "" && tunnelUUID == cookieUUID && r.Method == http.MethodGet && extraPath == "" {
+	// EXCLUDE WebSocket upgrades, as browsers don't follow redirects for WS.
+	isWS := strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+	if !isPathUUID && cookieUUID != "" && tunnelUUID == cookieUUID && r.Method == http.MethodGet && extraPath == "" && !isWS {
 		newPath := "/" + tunnelUUID + r.URL.Path
 		if r.URL.RawQuery != "" {
 			newPath += "?" + r.URL.RawQuery
