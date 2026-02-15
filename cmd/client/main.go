@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -62,11 +63,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	port, err := strconv.Atoi(os.Args[1])
-	if err != nil || port < constants.MinPort || port > constants.MaxPort {
-		fmt.Printf(colorRed+"Error: Invalid port number: %s"+colorReset+"\n", os.Args[1])
+	arg := os.Args[1]
+	var targetHost string
+	var targetPort int
+
+	// Try to parse as port number only first
+	if p, err := strconv.Atoi(arg); err == nil {
+		targetHost = "localhost"
+		targetPort = p
+	} else {
+		// Try to parse as host:port
+		host, portStr, err := net.SplitHostPort(arg)
+		if err != nil {
+			fmt.Printf(colorRed+"Error: Invalid argument: %s\nMust be a port number (e.g. 3000) or address:port (e.g. localhost:3000)"+colorReset+"\n", arg)
+			os.Exit(1)
+		}
+		if host == "" {
+			targetHost = "localhost"
+		} else {
+			targetHost = host
+		}
+		p, err := strconv.Atoi(portStr)
+		if err != nil {
+			fmt.Printf(colorRed+"Error: Invalid port number: %s"+colorReset+"\n", portStr)
+			os.Exit(1)
+		}
+		targetPort = p
+	}
+
+	if targetPort < constants.MinPort || targetPort > constants.MaxPort {
+		fmt.Printf(colorRed+"Error: Port number out of range: %d"+colorReset+"\n", targetPort)
 		os.Exit(1)
 	}
+	port := targetPort // alias for compatibility
 
 	serverURL := utils.GetEnv("SSROK_SERVER", constants.DefaultServerURL)
 
@@ -79,7 +108,8 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	printStep(1, "Local server configuration")
-	printHint("HTTPS for localhost:" + strconv.Itoa(port) + "? (tunnel URL handles HTTPS separately)")
+	printHint("Target: " + targetHost + ":" + strconv.Itoa(port))
+	printHint("HTTPS required for local connection?")
 	fmt.Printf("  %sHTTPS? [y/N]:%s ", colorBold, colorReset)
 	useTLSStr, _ := reader.ReadString('\n')
 	useTLSStr = strings.TrimSpace(useTLSStr)
@@ -185,7 +215,7 @@ func main() {
 	if useTLS {
 		localProto = "https"
 	}
-	localAddr := fmt.Sprintf("%s://localhost:%d", localProto, port)
+	localAddr := fmt.Sprintf("%s://%s:%d", localProto, targetHost, port)
 	expiresAt := time.Now().Add(resp.ExpiresIn).Format(constants.TimeFormatShort)
 	durationDisplay := utils.FormatDuration(resp.ExpiresIn)
 
@@ -214,7 +244,8 @@ func main() {
 		wsURL = wsURL + "?token=" + resp.Token
 	}
 
-	t, err := tunnel.ConnectClient(wsURL, port, tunnelUUID, skipTLSVerify, useTLS)
+	targetAddr := net.JoinHostPort(targetHost, strconv.Itoa(port))
+	t, err := tunnel.ConnectClient(wsURL, targetAddr, tunnelUUID, skipTLSVerify, useTLS)
 	if err != nil {
 		fmt.Printf("\n  %s✗ %s%s\n\n", colorRed, err.Error(), colorReset)
 		os.Exit(1)

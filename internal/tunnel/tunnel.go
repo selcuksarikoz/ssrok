@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -41,7 +42,7 @@ func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool) 
 		WSConn:    wsConn,
 		LocalPort: localPort,
 		UseTLS:    useTLS,
-		localAddr: fmt.Sprintf("127.0.0.1:%d", localPort),
+		localAddr: fmt.Sprintf("localhost:%d", localPort),
 	}
 }
 
@@ -111,6 +112,9 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 		localConn, err = net.DialTimeout("tcp", t.localAddr, constants.DialTimeout)
 	}
 	if err != nil {
+		if t.log != nil {
+			t.log.LogError("local app connection failed", err, t.localAddr, t.LocalPort)
+		}
 		stream.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to connect to local server"))
 		return
 	}
@@ -240,7 +244,10 @@ func (w *wsConnWrapper) SetDeadline(t time.Time) error      { return nil }
 func (w *wsConnWrapper) SetReadDeadline(t time.Time) error  { return w.conn.SetReadDeadline(t) }
 func (w *wsConnWrapper) SetWriteDeadline(t time.Time) error { return w.conn.SetWriteDeadline(t) }
 
-func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify bool, useTLS bool) (*Tunnel, error) {
+func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVerify bool, useTLS bool) (*Tunnel, error) {
+	_, portStr, _ := net.SplitHostPort(targetAddr)
+	localPort, _ := strconv.Atoi(portStr)
+
 	log, err := logger.NewLogger(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
@@ -293,6 +300,7 @@ func ConnectClient(wsURL string, localPort int, sessionID string, skipTLSVerify 
 		LocalPort: localPort,
 		UseTLS:    useTLS,
 		log:       log,
+		localAddr: targetAddr,
 	}
 
 	return tunnel, nil

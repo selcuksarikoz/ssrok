@@ -58,8 +58,14 @@ go run cmd/server/main.go
 ### 2. Start the Client
 
 ```bash
-# Expose localhost:3000
+# Expose localhost:3000 (default)
 ssrok 3000
+
+# Expose specific host:port
+ssrok localhost:8080
+
+# Expose external IP (e.g. device on local network)
+ssrok 192.168.1.5:8000
 ```
 
 You'll get a Magic URL and a Raw URL:
@@ -69,8 +75,8 @@ You'll get a Magic URL and a Raw URL:
 ║                    🚀 Tunnel Active                      ║
 ╚══════════════════════════════════════════════════════════╝
 
-   Magic URL: http://localhost:8080/UUID?token=TOKEN
-   Raw URL:   http://localhost:8080/UUID
+   Magic URL: http://localhost/UUID?token=TOKEN
+   Raw URL:   http://localhost/UUID
 
    Local:     http://localhost:3000
    Expires:   05:30 (1 hour)
@@ -89,8 +95,8 @@ cp .env.example .env
 
 | Variable           | Default            | Description          |
 | ------------------ | ------------------ | -------------------- |
-| `PORT`             | `8080`             | Server listen port   |
-| `SSROK_HOST`       | `localhost:8080`   | Public hostname      |
+| `PORT`             | `80`               | Server listen port   |
+| `SSROK_HOST`       | `localhost`        | Public hostname      |
 | `SSROK_ENABLE_TLS` | `false`            | Enable built-in TLS  |
 | `SSROK_CERT_FILE`  | `certs/server.crt` | TLS certificate path |
 | `SSROK_KEY_FILE`   | `certs/server.key` | TLS key path         |
