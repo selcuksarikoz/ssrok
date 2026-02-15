@@ -123,15 +123,26 @@ Make sure to configure the Environment Variables (see below) to match your domai
 | 📝 **Session Logs**  | JSON logs for each tunnel         |
 | 💾 **Redis**         | Optional persistence              |
 
-## Security
+## Security & Limitations
 
-- Token authentication required for all connections
-- Optional SHA256 password protection
-- Rate limiting: 60 req/min per IP (configurable)
-- Max 10 concurrent connections per IP
-- Brute force protection: 5 failed attempts → 15 min ban
-- Auto-cleanup: sessions destroyed after expiry
-- Audit logging for security events
+### Security Features
+
+- **Token Authentication**: Required for all connections to prevent unauthorized usage.
+- **Password Protection**: Optional SHA256 password protection for your public URLs.
+- **Rate Limiting**: Built-in DDoS prevention (default: 60 req/min/IP), fully configurable.
+- **Brute Force Protection**: IP banning after 5 failed authentication attempts (15 min ban).
+- **Audit Logging**: Comprehensive logs for all security-critical events.
+
+### Developer constraints
+
+To ensure the stability and security of the shared tunnel infrastructure, the following limitations apply:
+
+- **100MB Body Limit**: The maximum allowed request body size (e.g., file uploads) is **100MB**.
+- **Header Filtering**: Request headers (including `Cookie` and `Authorization`) are forwarded to your local app. However, the following **Response Headers** are stripped from the response for security reasons:
+  - `Set-Cookie` — _Cookie-based sessions will not persist immediately on the tunnel domain. Use **JWT/Bearer tokens** for API authentication._
+  - `Strict-Transport-Security` (HSTS)
+  - `Content-Security-Policy` (CSP)
+  - `X-Frame-Options` & `X-Xss-Protection`
 
 ## Architecture
 
