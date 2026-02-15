@@ -122,7 +122,7 @@ func main() {
 	fmt.Println()
 
 	printStep(2, "Password (optional)")
-	printHint("Leave empty for token-only access")
+	printHint("Leave empty for 'No Password' login access")
 	fmt.Printf("  %sPassword:%s ", colorBold, colorReset)
 	password, _ := reader.ReadString('\n')
 	password = strings.TrimSpace(password)

@@ -64,9 +64,7 @@ func (s *Session) VerifyToken(token string) bool {
 }
 
 func (s *Session) VerifyPassword(password string) bool {
-	if s.PasswordHash == "" {
-		return true
-	}
+
 	providedHash := utils.HashSHA256(password)
 	return subtle.ConstantTimeCompare([]byte(providedHash), []byte(s.PasswordHash)) == 1
 }

@@ -325,10 +325,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	tunnelUUID := uuid.New().String()
 	token := uuid.New().String()
 
-	var passwordHash string
-	if req.Password != "" {
-		passwordHash = utils.HashSHA256(req.Password)
-	}
+	passwordHash := utils.HashSHA256(req.Password)
 
 	sess := &session.Session{
 		UUID:         tunnelUUID,
@@ -552,7 +549,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		authenticated = true
 	}
 
-	if sess.HasPassword() && !authenticated {
+	if !authenticated {
 		if r.Method == http.MethodPost {
 			r.Body = http.MaxBytesReader(w, r.Body, 4096)
 
@@ -566,6 +563,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			}
 
 			password := r.FormValue("password")
+			// If session has no password (token-only), VerifyPassword returns false
 			if sess.VerifyPassword(password) {
 				log.Printf("✅ User logged in (Password): %s", clientIP)
 				bruteProtector.RecordSuccess(clientIP)
@@ -603,9 +601,6 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			"Title":     "Login",
 			"CSRFToken": csrf,
 		})
-		return
-	} else if !authenticated {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
