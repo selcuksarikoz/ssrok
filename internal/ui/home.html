@@ -20,7 +20,7 @@
     </div>
 
     <!-- Installation Section -->
-    <div class="grid md:grid-cols-2 gap-8 mb-16">
+    <div class="max-w-xl mx-auto mb-16">
         <!-- macOS -->
         <div class="glass-card p-6 rounded-xl hover:border-indigo-500/30 transition-colors">
             <div class="flex items-center gap-3 mb-4">
@@ -37,23 +37,6 @@
             </div>
         </div>
 
-        <!-- Linux / Windows -->
-        <div class="glass-card p-6 rounded-xl hover:border-indigo-500/30 transition-colors">
-            <div class="flex items-center gap-3 mb-4">
-                <div class="flex gap-2 text-gray-100">
-                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 448 512"><path d="M433.754 420.445c-11.526 1.393-44.86-52.741-44.861-52.741 0 3.138-.027 6.13-.046 9.246 0 4.781.015 7.632.041 11.327a19.7 19.7 0 0 1-5.617 14.707c-3.141 3.258-7.22 4.672-14.88 4.672H161.472c-29.418 0-43.197-15.195-50.518-30.844-6.687-14.288-6.104-33.377 20.31-70.252l87.168-121.782c5.856-8.176 11.83-20.941-1.096-33.866l-58.114-58.114c-12.925-12.925-25.69-6.952-33.866-1.096L99.728 128.59c-36.875 26.414-55.964 26.996-70.252 20.31C13.829 141.579-1.366 127.8 1.488 98.382v-65.05c0-7.66 1.414-11.739 4.672-14.88a19.7 19.7 0 0 1 14.707-5.617c3.696.026 6.547.041 11.327.041 3.116-.019 6.108-.046 9.246-.046 0 0-54.135-33.334-52.741-44.861 3.515-29.093 50.485-3.037 81.362 13.924C108.97 4.102 165.719 0 223.998 0c58.28 0 115.028 4.102 154.298 21.907 30.877-16.961 77.847-43.017 81.362-13.924 1.393 11.526-52.741 44.86-52.741 44.861 0 3.138.027 6.13.046 9.246 0 4.781-.015 7.632-.041 11.327a19.7 19.7 0 0 1 5.617 14.707c3.141 3.258 7.22 4.672 14.88 4.672h65.05c29.418 0 43.197 15.195 50.518 30.844 6.687 14.288 6.104 33.377-20.31 70.252l-87.168 121.782c-5.856 8.176-11.83 20.941 1.096 33.866l58.114 58.114c12.925 12.925 25.69 6.952 33.866 1.096l25.628-36.875c36.875-26.414 55.964-26.996 70.252-20.31 15.649 7.321 30.844 21.1 27.99 50.518v65.05c0 7.66-1.414 11.739-4.672 14.88a19.7 19.7 0 0 1-14.707 5.617c-3.696-.026-6.547-.041-11.327-.041-3.116.019-6.108.046-9.246.046 0 0 54.135 33.334 52.741 44.861-3.515 29.093-50.485 3.037-81.362-13.924-39.27 17.805-96.018 21.907-154.298 21.907-58.28 0-115.028-4.102-154.298-21.907-30.877 16.961-77.847 43.017-81.362 13.924z"/></svg>
-                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 448 512"><path d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 152.6h183.6v172L0 418.3V246.3zm203.4-28.6h244.6V52.3l-244.6 34.7v130.7zm0 28.6v153.9l244.6 34.7V217.7H203.4z"/></svg>
-                </div>
-                <h2 class="text-2xl font-bold text-gray-100">Linux & Windows</h2>
-            </div>
-            <p class="text-gray-400 mb-4 text-sm">Download the latest binary release.</p>
-            <div class="flex flex-col gap-2">
-                <a href="https://github.com/selcuksarikoz/ssrok/releases/latest" target="_blank" class="w-full glass-input p-3 text-center text-indigo-400 hover:text-indigo-300 transition-colors text-sm rounded-lg flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Download Binary
-                </a>
-            </div>
-        </div>
     </div>
 
     <!-- Usage Section -->
@@ -67,9 +50,9 @@
                 </div>
             </div>
             <div>
-                <p class="text-gray-400 text-sm mb-2">With custom subdomain (Pro):</p>
+                 <p class="text-gray-400 text-sm mb-2">Expose specific host & port:</p>
                 <div class="bg-black/50 rounded-lg p-3 font-mono text-sm text-green-400 border border-white/5">
-                    ssrok 8080 -s my-app
+                    ssrok 0.0.0.0:3000
                 </div>
             </div>
         </div>
