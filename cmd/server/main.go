@@ -524,6 +524,16 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 
 	if token != "" && sess.VerifyToken(token) {
 		log.Printf("✅ User logged in (Token): %s", clientIP)
+
+		// Fetch tunnel for logging (if active)
+		tunnelMu.RLock()
+		tLog, okLog := tunnels[tunnelUUID]
+		tunnelMu.RUnlock()
+
+		if okLog {
+			tLog.SendLog(fmt.Sprintf("=> User connected via Magic URL: %s", clientIP))
+		}
+
 		bruteProtector.RecordSuccess(clientIP)
 		http.SetCookie(w, &http.Cookie{
 			Name:     constants.SessionCookieName,
@@ -551,7 +561,6 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !authenticated {
-		// Fetch tunnel for logging purposes (ignoring errors if not active yet)
 		tunnelMu.RLock()
 		tLog, okLog := tunnels[tunnelUUID]
 		tunnelMu.RUnlock()
@@ -569,13 +578,10 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			}
 
 			password := r.FormValue("password")
-			// If session has no password (token-only), VerifyPassword returns false
 			if sess.VerifyPassword(password) {
 				log.Printf("✅ User logged in (Password): %s", clientIP)
 				if okLog {
 					tLog.SendLog("=> login is done")
-					// Send active user count or notification
-					// Just notify a user connected for now as requested
 					tLog.SendLog(fmt.Sprintf("=> User connected: %s", clientIP))
 				}
 
@@ -750,7 +756,51 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		})
 		return
 	}
-	defer resp.Body.Close()
+	// Defer closing resp.Body only if we don't hijack the connection
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
+
+	// Handle WebSocket/Upgrade (101 Switching Protocols)
+	if resp.StatusCode == http.StatusSwitchingProtocols {
+		// Copy response headers
+		for key, values := range resp.Header {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		w.WriteHeader(http.StatusSwitchingProtocols)
+
+		// Hijack the connection to allow raw TCP bidirectional stream
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			log.Printf("Proxy: server doesn't support hijacking")
+			return
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			log.Printf("Proxy: hijack error: %v", err)
+			return
+		}
+		defer conn.Close() // Close the hijacked client connection
+
+		// Release the buffered reader as we're taking over the raw connection
+		tunnel.PutBufioReader(br)
+		resp.Body = nil // Prevent deferred resp.Body.Close() from closing the underlying stream
+
+		// Stream from Client -> Tunnel (stream)
+		go func() {
+			// We can copy from conn directly to stream
+			io.Copy(stream, conn)
+		}()
+
+		// Stream from Tunnel (resp.Body or br) -> Client (conn)
+		// We use resp.Body because it wraps the buffered reader which might have data
+		io.Copy(conn, stream) // Copy directly from the underlying stream
+		return
+	}
 
 	// Intercept 502/503 from the tunnel client (e.g. "Failed to connect to local server")
 	// treating them as connection errors to show our nice error page
@@ -770,12 +820,16 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 
 	for key, values := range resp.Header {
-		if !hopByHopHeaders[key] && !dangerousResponseHeaders[key] {
+		if !hopByHopHeaders[key] && !dangerousResponseHeaders[key] && key != "Content-Length" {
 			for _, value := range values {
 				w.Header().Add(key, value)
 			}
 		}
 	}
+	// Explicitly remove Content-Length to avoid mismatches.
+	// Go will add it automatically if known, or use chunked encoding.
+	w.Header().Del("Content-Length")
+
 	w.WriteHeader(resp.StatusCode)
 
 	copyBuf := tunnel.GetBuffer()
