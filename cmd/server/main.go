@@ -67,6 +67,15 @@ var dangerousResponseHeaders = map[string]bool{
 
 func init() {
 	store = session.NewStore()
+	store.OnExpire = func(uuid string) {
+		tunnelMu.Lock()
+		if t, ok := tunnels[uuid]; ok {
+			t.Close()
+			delete(tunnels, uuid)
+			log.Printf("🗑 Tunnel closed (expired): %s", uuid)
+		}
+		tunnelMu.Unlock()
+	}
 	connLimiter = security.NewConnectionLimiter(constants.MaxConnectionsPerIP)
 	bruteProtector = security.NewBruteForceProtector(constants.MaxAuthAttempts, constants.BlockDuration)
 
@@ -267,6 +276,17 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		req.RateLimit = constants.DefaultRateLimit
 	}
 
+	sessionDuration := constants.SessionDuration
+	if req.ExpiresIn > 0 {
+		sessionDuration = req.ExpiresIn
+		if sessionDuration < constants.MinSessionDuration {
+			sessionDuration = constants.MinSessionDuration
+		}
+		if sessionDuration > constants.MaxSessionDuration {
+			sessionDuration = constants.MaxSessionDuration
+		}
+	}
+
 	tunnelUUID := uuid.New().String()
 	token := uuid.New().String()
 
@@ -278,7 +298,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		RateLimit:    req.RateLimit,
 		UseTLS:       req.UseTLS,
 		CreatedAt:    time.Now(),
-		ExpiresAt:    time.Now().Add(constants.SessionDuration),
+		ExpiresAt:    time.Now().Add(sessionDuration),
 		RequestCount: make(map[string]int),
 		LastRequest:  make(map[string]time.Time),
 	}
@@ -301,13 +321,13 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		UUID:      tunnelUUID,
 		URL:       tunnelURL,
 		Token:     token,
-		ExpiresIn: constants.SessionDuration,
+		ExpiresIn: sessionDuration,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 
-	log.Printf("✅ New tunnel registered: %s (expires in 1 hour)", tunnelUUID)
+	log.Printf("✅ New tunnel registered: %s (expires in %s)", tunnelUUID, sessionDuration)
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {

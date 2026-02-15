@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"log"
 	"sync"
 	"time"
 
@@ -77,6 +78,7 @@ func (s *Session) HasPassword() bool {
 
 type Store struct {
 	sessions sync.Map
+	OnExpire func(uuid string)
 }
 
 func NewStore() *Store {
@@ -97,6 +99,9 @@ func (st *Store) Get(uuid string) (*Session, bool) {
 	session := val.(*Session)
 	if session.IsExpired() {
 		st.sessions.Delete(uuid)
+		if st.OnExpire != nil {
+			st.OnExpire(uuid)
+		}
 		return nil, false
 	}
 	return session, true
@@ -114,10 +119,15 @@ func (st *Store) cleanupLoop() {
 		st.sessions.Range(func(key, value interface{}) bool {
 			session := value.(*Session)
 			if session.IsExpired() {
+				uuid := key.(string)
 				if session.Conn != nil {
 					session.Conn.Close()
 				}
 				st.sessions.Delete(key)
+				if st.OnExpire != nil {
+					st.OnExpire(uuid)
+				}
+				log.Printf("🗑 Expired session cleaned up: %s", uuid)
 			}
 			return true
 		})

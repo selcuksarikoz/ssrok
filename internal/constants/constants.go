@@ -20,6 +20,8 @@ const (
 
 const (
 	SessionDuration       = time.Hour
+	MinSessionDuration    = 5 * time.Minute
+	MaxSessionDuration    = 24 * time.Hour
 	SessionCookieName     = "ssrok_session"
 	SessionCookieMaxAge   = 3600
 	SessionCookieSameSite = http.SameSiteStrictMode

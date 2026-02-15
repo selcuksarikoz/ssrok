@@ -123,7 +123,36 @@ func main() {
 	}
 	fmt.Println()
 
-	printStep(4, "Connecting to server...")
+	printStep(4, "Session duration (default: 60 minutes)")
+	printHint("How long should the tunnel stay active? (5m - 1440m)")
+	printHint("Examples: 30, 60, 120, 480")
+	fmt.Print(colorBold + "   Duration in minutes [60]: " + colorReset)
+	durationStr, _ := reader.ReadString('\n')
+	durationStr = strings.TrimSpace(durationStr)
+
+	expiresIn := constants.SessionDuration
+	if durationStr != "" {
+		mins, err := strconv.Atoi(durationStr)
+		if err == nil && mins > 0 {
+			expiresIn = time.Duration(mins) * time.Minute
+			if expiresIn < constants.MinSessionDuration {
+				expiresIn = constants.MinSessionDuration
+				printHint(colorYellow + fmt.Sprintf("Minimum is 5 minutes, set to %s", expiresIn) + colorReset)
+			} else if expiresIn > constants.MaxSessionDuration {
+				expiresIn = constants.MaxSessionDuration
+				printHint(colorYellow + fmt.Sprintf("Maximum is 24 hours, set to %s", expiresIn) + colorReset)
+			} else {
+				printHint(fmt.Sprintf("Session will expire in %d minutes", mins))
+			}
+		} else {
+			printHint(colorYellow + "Invalid input, using default: 60 minutes" + colorReset)
+		}
+	} else {
+		printHint("Using default: 60 minutes")
+	}
+	fmt.Println()
+
+	printStep(5, "Connecting to server...")
 	fmt.Println(colorDim + "   Initializing secure tunnel..." + colorReset)
 
 	config := protocol.ConfigRequest{
@@ -131,6 +160,7 @@ func main() {
 		Password:  password,
 		RateLimit: rateLimit,
 		UseTLS:    useTLS,
+		ExpiresIn: expiresIn,
 	}
 
 	resp, err := registerTunnel(serverURL, config, skipTLSVerify)
@@ -231,7 +261,8 @@ func main() {
 	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, localLabel, colorReset, localValue, colorGreen, colorReset)
 
 	expiresLabel := " ⏱  Expires    "
-	expiresStr := fmt.Sprintf("%s (%s)", expiresAt, constants.DurationHour)
+	durationDisplay := formatDuration(resp.ExpiresIn)
+	expiresStr := fmt.Sprintf("%s (%s)", expiresAt, durationDisplay)
 	expiresValue := pad(expiresStr, boxWidth-2-len(expiresLabel)-1) + " "
 	fmt.Printf("   %s│%s%s%s%s%s%s│%s\n", colorGreen, colorReset, colorDim, expiresLabel, colorReset, expiresValue, colorGreen, colorReset)
 
@@ -371,4 +402,23 @@ func extractUUID(tunnelURL string) string {
 		return parts[0]
 	}
 	return ""
+}
+
+func formatDuration(d time.Duration) string {
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+
+	if hours == 0 {
+		return fmt.Sprintf("%d minutes", minutes)
+	}
+	if minutes == 0 {
+		if hours == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", hours)
+	}
+	if hours == 1 {
+		return fmt.Sprintf("1 hour %d minutes", minutes)
+	}
+	return fmt.Sprintf("%d hours %d minutes", hours, minutes)
 }
