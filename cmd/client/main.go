@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -72,13 +73,18 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	printStep(1, "Local server uses HTTPS?")
-	fmt.Printf(colorBold+"   Enable TLS for localhost:%d [y/N]: "+colorReset, port)
+	printStep(1, "Local server configuration")
+	printHint("Does your local server (localhost:" + strconv.Itoa(port) + ") require HTTPS?")
+	printHint("Note: This is for the connection between ssrok and your local app.")
+	printHint("The public tunnel URL will handle HTTPS automatically.")
+	fmt.Printf(colorBold + "   Use HTTPS for local connection? [y/N]: " + colorReset)
 	useTLSStr, _ := reader.ReadString('\n')
 	useTLSStr = strings.TrimSpace(useTLSStr)
 	useTLS := strings.ToLower(useTLSStr) == "y"
 	if useTLS {
-		printHint(colorGreen + "TLS enabled - will connect to localhost using HTTPS" + colorReset)
+		printHint(colorGreen + "Enabled: ssrok will connect to localhost using HTTPS" + colorReset)
+	} else {
+		printHint(colorDim + "Disabled: ssrok will connect to localhost using HTTP" + colorReset)
 	}
 	fmt.Println()
 
@@ -129,6 +135,19 @@ func main() {
 
 	resp, err := registerTunnel(serverURL, config, skipTLSVerify)
 	if err != nil {
+		// If using HTTP and failed with 400 (Client sent HTTP query to HTTPS server), try HTTPS
+		if strings.HasPrefix(serverURL, "http://") && strings.Contains(err.Error(), "status 400") {
+			printHint(colorYellow + "HTTP connection failed, attempting HTTPS..." + colorReset)
+			serverURL = strings.Replace(serverURL, "http://", "https://", 1)
+
+			// Recalculate skipTLSVerify for the new URL
+			skipTLSVerify = strings.Contains(serverURL, "localhost") || strings.Contains(serverURL, "127.0.0.1")
+
+			resp, err = registerTunnel(serverURL, config, skipTLSVerify)
+		}
+	}
+
+	if err != nil {
 		fmt.Println()
 		fmt.Println(colorRed + "   ✗ Failed to connect: " + err.Error() + colorReset)
 		fmt.Println()
@@ -138,7 +157,6 @@ func main() {
 	fmt.Println(colorGreen + "   ✓ Tunnel registered successfully!" + colorReset)
 
 	magicURL := fmt.Sprintf("%s?token=%s", resp.URL, resp.Token)
-
 	localProto := "http"
 	if useTLS {
 		localProto = "https"
@@ -159,6 +177,8 @@ func main() {
 	fmt.Println()
 	fmt.Println(colorDim + "   📋 Share the Magic URL for direct access (no password required)" + colorReset)
 	fmt.Println(colorDim + "   🔒 Share the Raw URL + password for authenticated access" + colorReset)
+	fmt.Println()
+	fmt.Println(colorYellow + "   ⚠ Note: Accept the self-signed certificate warning in your browser if it appears." + colorReset)
 	fmt.Println()
 	fmt.Println(colorBold + "   Press Ctrl+C to stop" + colorReset)
 	fmt.Println()
@@ -252,7 +272,8 @@ func registerTunnel(serverURL string, config protocol.ConfigRequest, skipTLSVeri
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(bytes.TrimSpace(body)))
 	}
 
 	var result protocol.ConfigResponse

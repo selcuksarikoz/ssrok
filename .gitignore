@@ -2,6 +2,7 @@
 /server
 /ssrok
 /ssrok-server
+/main
 .envrc
 
 # Env

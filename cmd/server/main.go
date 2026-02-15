@@ -142,10 +142,19 @@ func main() {
 
 	log.Printf("🚀 ssrok server starting on :%s", port)
 
+	// TLS Configuration
+	enableTLS := strings.ToLower(utils.GetEnv("SSROK_ENABLE_TLS", "false")) == "true"
 	useTLS := false
-	if _, err := os.Stat(certFile); err == nil {
-		if _, err := os.Stat(keyFile); err == nil {
-			useTLS = true
+
+	if enableTLS {
+		if _, err := os.Stat(certFile); err == nil {
+			if _, err := os.Stat(keyFile); err == nil {
+				useTLS = true
+			}
+		}
+
+		if !useTLS {
+			log.Printf("Warning: SSROK_ENABLE_TLS is true but certs not found at %s", certFile)
 		}
 	}
 	serverUseTLS = useTLS
@@ -363,18 +372,49 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Try to get tunnelUUID from path first
 	tunnelUUID := parts[0]
 
-	// Validate UUID format
-	if !security.ValidateUUID(tunnelUUID) {
-		http.Error(w, "Invalid tunnel ID format", http.StatusBadRequest)
-		return
+	// Check if the first part is a valid UUID
+	isPathUUID := security.ValidateUUID(tunnelUUID)
+
+	var sess *session.Session
+	var ok bool
+
+	// Check for session cookie to support asset loading (e.g. /_next/...)
+	cookie, err := r.Cookie(constants.SessionCookieName)
+	var cookieUUID string
+	var cookieTokenHash string
+
+	if err == nil {
+		vals := strings.Split(cookie.Value, ":")
+		if len(vals) == 2 {
+			cookieUUID = vals[0]
+			cookieTokenHash = vals[1]
+		}
 	}
 
-	sess, ok := store.Get(tunnelUUID)
-	if !ok {
-		http.Error(w, "Tunnel not found or expired", http.StatusNotFound)
-		return
+	// Logic to determine target tunnel
+	if isPathUUID {
+		// Path explicitly requests a tunnel
+		sess, ok = store.Get(tunnelUUID)
+		if !ok {
+			http.Error(w, "Tunnel not found or expired", http.StatusNotFound)
+			return
+		}
+	} else if cookieUUID != "" {
+		// Path is not a UUID (e.g. asset), try to find tunnel from cookie
+		sess, ok = store.Get(cookieUUID)
+		if ok && sess.TokenHash == cookieTokenHash {
+			tunnelUUID = cookieUUID
+		}
+	}
+
+	if sess == nil {
+		if !isPathUUID {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	if !sess.CheckRateLimit(clientIP) {
@@ -388,17 +428,16 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Token validation required for all requests (with or without password)
+	// Token validation
 	token := r.URL.Query().Get("token")
-	cookie, err := r.Cookie(constants.SessionCookieName)
 
-	// If token in query is valid, set cookie
+	// If token in query is valid, set global cookie
 	if token != "" && sess.VerifyToken(token) {
 		bruteProtector.RecordSuccess(clientIP)
 		http.SetCookie(w, &http.Cookie{
 			Name:     constants.SessionCookieName,
-			Value:    sess.TokenHash,
-			Path:     "/" + tunnelUUID,
+			Value:    fmt.Sprintf("%s:%s", tunnelUUID, sess.TokenHash),
+			Path:     "/", // Global path to support assets
 			MaxAge:   constants.SessionCookieMaxAge,
 			HttpOnly: true,
 			Secure:   true,
@@ -409,61 +448,61 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		if len(parts) > 1 {
 			cleanURL += "/" + strings.Join(parts[1:], "/")
 		}
+
 		http.Redirect(w, r, cleanURL, http.StatusFound)
 		return
 	}
 
-	// Check if token exists in cookie
-	tokenValid := err == nil && cookie.Value == sess.TokenHash
+	// Verify Auth
+	var authenticated bool
 
-	// If password is set, show login page
-	if sess.HasPassword() {
-		if !tokenValid {
-			if r.Method == http.MethodPost {
-				password := r.FormValue("password")
-				if sess.VerifyPassword(password) {
-					bruteProtector.RecordSuccess(clientIP)
-					if auditLogger != nil {
-						auditLogger.LogAuthSuccess(clientIP, tunnelUUID)
-					}
-					http.SetCookie(w, &http.Cookie{
-						Name:     constants.SessionCookieName,
-						Value:    sess.TokenHash,
-						Path:     "/" + tunnelUUID,
-						MaxAge:   constants.SessionCookieMaxAge,
-						HttpOnly: true,
-						Secure:   true,
-						SameSite: constants.SessionCookieSameSite,
-					})
-					http.Redirect(w, r, r.URL.Path, http.StatusFound)
-					return
-				}
-				bruteProtector.RecordFailure(clientIP)
+	// 1. Cookie Auth
+	if cookieUUID == tunnelUUID && cookieTokenHash == sess.TokenHash {
+		authenticated = true
+	}
+
+	// 2. Password Auth logic
+	if sess.HasPassword() && !authenticated {
+		if r.Method == http.MethodPost {
+			password := r.FormValue("password")
+			if sess.VerifyPassword(password) {
+				bruteProtector.RecordSuccess(clientIP)
 				if auditLogger != nil {
-					auditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid password")
+					auditLogger.LogAuthSuccess(clientIP, tunnelUUID)
 				}
-				w.WriteHeader(http.StatusUnauthorized)
-				templates.ExecuteTemplate(w, "login.html", map[string]interface{}{
-					"Title": "Login",
-					"Error": "Invalid password",
+				http.SetCookie(w, &http.Cookie{
+					Name:     constants.SessionCookieName,
+					Value:    fmt.Sprintf("%s:%s", tunnelUUID, sess.TokenHash),
+					Path:     "/",
+					MaxAge:   constants.SessionCookieMaxAge,
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: constants.SessionCookieSameSite,
 				})
+				http.Redirect(w, r, r.URL.Path, http.StatusFound)
 				return
 			}
+			bruteProtector.RecordFailure(clientIP)
+			if auditLogger != nil {
+				auditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid password")
+			}
+			w.WriteHeader(http.StatusUnauthorized)
 			templates.ExecuteTemplate(w, "login.html", map[string]interface{}{
 				"Title": "Login",
+				"Error": "Invalid password",
 			})
 			return
 		}
-	} else {
-		// No password but invalid token = unauthorized
-		if !tokenValid {
-			bruteProtector.RecordFailure(clientIP)
-			if auditLogger != nil {
-				auditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid or missing token")
-			}
-			http.Error(w, "Unauthorized: valid token required", http.StatusUnauthorized)
-			return
-		}
+
+		// Show login if not POST
+		templates.ExecuteTemplate(w, "login.html", map[string]interface{}{
+			"Title": "Login",
+		})
+		return
+	} else if !authenticated {
+		// No password but invalid token/cookie
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	if !sess.TunnelActive || sess.Conn == nil {
@@ -480,7 +519,15 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxyRequest(t, w, r, path)
+	// Calculate target path for the proxy
+	var targetPath string
+	if isPathUUID {
+		targetPath = "/" + strings.Join(parts[1:], "/")
+	} else {
+		targetPath = r.URL.Path
+	}
+
+	proxyRequest(t, w, r, targetPath)
 }
 
 func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path string) {
@@ -491,15 +538,14 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 	defer stream.Close()
 
-	targetPath := "/" + strings.Join(strings.Split(path, "/")[1:], "/")
-	if targetPath == "" {
-		targetPath = "/"
+	if path == "" {
+		path = "/"
 	}
 	if r.URL.RawQuery != "" {
-		targetPath += "?" + r.URL.RawQuery
+		path += "?" + r.URL.RawQuery
 	}
 
-	reqLine := fmt.Sprintf("%s %s HTTP/1.1\r\n", r.Method, targetPath)
+	reqLine := fmt.Sprintf("%s %s HTTP/1.1\r\n", r.Method, path)
 
 	var buf bytes.Buffer
 	buf.WriteString(reqLine)
@@ -510,9 +556,14 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		}
 	}
 
+	buf.WriteString(fmt.Sprintf("Host: localhost:%d\r\n", t.LocalPort))
 	buf.WriteString(fmt.Sprintf("X-Forwarded-For: %s\r\n", security.GetClientIP(r)))
 	buf.WriteString(fmt.Sprintf("X-Forwarded-Host: %s\r\n", r.Host))
 	buf.WriteString(fmt.Sprintf("X-Forwarded-Proto: %s\r\n", getScheme(r)))
+
+	if r.ContentLength > 0 {
+		buf.WriteString(fmt.Sprintf("Content-Length: %d\r\n", r.ContentLength))
+	}
 
 	buf.WriteString("\r\n")
 
@@ -528,23 +579,16 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 		r.Body.Close()
 	}
 
-	respBuf := tunnel.GetBuffer()
-	defer tunnel.PutBuffer(respBuf)
-	n, err := stream.Read(respBuf)
-	if err != nil && err != io.EOF {
-		http.Error(w, "Failed to read response", http.StatusServiceUnavailable)
-		return
-	}
-
-	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respBuf[:n])), r)
+	resp, err := http.ReadResponse(bufio.NewReader(stream), r)
 	if err != nil {
-		w.Write(respBuf[:n])
-		respBuf2 := tunnel.GetBuffer()
-		io.CopyBuffer(w, stream, respBuf2)
-		tunnel.PutBuffer(respBuf2)
+		// If we can't read a valid HTTP response, it might be a raw stream or connection error
+		log.Printf("Failed to read response from tunnel: %v", err)
+		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 		return
 	}
+	defer resp.Body.Close()
 
+	// Copy headers
 	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
@@ -552,8 +596,10 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 	w.WriteHeader(resp.StatusCode)
 
-	io.Copy(w, resp.Body)
-	resp.Body.Close()
+	// Stream the body
+	copyBuf := tunnel.GetBuffer()
+	defer tunnel.PutBuffer(copyBuf)
+	io.CopyBuffer(w, resp.Body, copyBuf)
 }
 
 func getScheme(r *http.Request) string {
