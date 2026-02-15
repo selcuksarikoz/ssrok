@@ -101,10 +101,8 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	var err error
 
 	if t.log != nil {
+		// Also print to CLI for user visibility - disabled per user request
 		t.log.LogEvent("Forwarding request", t.LocalPort)
-		// Also print to CLI for user visibility
-		fmt.Printf(constants.ColorCyan+"   → %s Forwarding request to localhost:%d"+constants.ColorReset+"\n",
-			time.Now().Format("15:04:05"), t.LocalPort)
 	}
 
 	if t.UseTLS {

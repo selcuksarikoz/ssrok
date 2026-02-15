@@ -433,6 +433,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		if auditLogger != nil {
 			auditLogger.LogRateLimit(clientIP, tunnelUUID)
 		}
+		log.Printf("⛔ Rate limit exceeded: %s", clientIP)
 		w.WriteHeader(http.StatusTooManyRequests)
 		templates["ratelimit.html"].Execute(w, map[string]interface{}{
 			"Title": constants.MsgRateLimitExceeded,
@@ -445,6 +446,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 
 	// If token in query is valid, set global cookie
 	if token != "" && sess.VerifyToken(token) {
+		log.Printf("✅ User logged in (Token): %s", clientIP)
 		bruteProtector.RecordSuccess(clientIP)
 		http.SetCookie(w, &http.Cookie{
 			Name:     constants.SessionCookieName,
@@ -478,6 +480,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			password := r.FormValue("password")
 			if sess.VerifyPassword(password) {
+				log.Printf("✅ User logged in (Password): %s", clientIP)
 				bruteProtector.RecordSuccess(clientIP)
 				if auditLogger != nil {
 					auditLogger.LogAuthSuccess(clientIP, tunnelUUID)
@@ -543,6 +546,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 }
 
 func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path string) {
+	log.Printf("👤 User connected: %s -> %s %s", security.GetClientIP(r), r.Method, path)
 	stream, err := t.Session.OpenStream()
 	if err != nil {
 		log.Printf("Proxy: failed to open stream: %v", err)
