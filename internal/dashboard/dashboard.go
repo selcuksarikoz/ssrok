@@ -4,16 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"ssrok/internal/constants"
 	"ssrok/internal/logger"
 	"ssrok/internal/types"
 	"ssrok/internal/ui"
+
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
@@ -109,13 +111,34 @@ func (d *Dashboard) broadcastLog(logEntry types.HTTPLog) {
 }
 
 func (d *Dashboard) handleIndex(w http.ResponseWriter, r *http.Request) {
-	content, err := ui.Templates.ReadFile("dashboard.html")
+	layoutContent, err := ui.Templates.ReadFile("layout.html")
+	if err != nil {
+		http.Error(w, "Layout not found", http.StatusInternalServerError)
+		return
+	}
+
+	dashboardContent, err := ui.Templates.ReadFile("dashboard.html")
 	if err != nil {
 		http.Error(w, "Dashboard not found", http.StatusInternalServerError)
 		return
 	}
+
+	t, err := template.New("layout").Parse(string(layoutContent))
+	if err != nil {
+		http.Error(w, "Template parse error", http.StatusInternalServerError)
+		return
+	}
+
+	_, err = t.Parse(string(dashboardContent))
+	if err != nil {
+		http.Error(w, "Dashboard parse error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html")
-	w.Write(content)
+	if err := t.Execute(w, map[string]string{"Title": "ssrok Dashboard"}); err != nil {
+		log.Printf("Error rendering dashboard: %v", err)
+	}
 }
 
 func (d *Dashboard) handleWebSocket(w http.ResponseWriter, r *http.Request) {

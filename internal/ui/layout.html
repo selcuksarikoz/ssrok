@@ -30,8 +30,7 @@
     </script>
 </head>
 <body class="bg-gray-900 text-gray-100 antialiased min-h-screen">
-    <div class="min-h-screen flex items-center justify-center p-4">
-        {{template "content" .}}
-    </div>
+    {{template "content" .}}
+    {{block "scripts" .}}{{end}}
 </body>
 </html>

@@ -1,4 +1,5 @@
 {{define "content"}}
+<div class="min-h-screen flex items-center justify-center p-4">
 <div class="w-full max-w-md">
     <div class="bg-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 shadow-2xl">
         <div class="text-center">
@@ -7,20 +8,20 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
             </div>
-            
+
             <h1 class="text-3xl font-bold text-white mb-2">
                 Rate Limit Exceeded
             </h1>
-            
+
             <p class="text-gray-400 mb-6">
                 You've made too many requests. Please wait a moment before trying again.
             </p>
-            
+
             <div class="py-4 px-6 rounded-xl bg-gray-900/50 border border-gray-700">
                 <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Reset In</div>
                 <div class="text-2xl font-mono text-amber-400" id="countdown">60s</div>
             </div>
-            
+
             <div class="mt-8">
                 <a href="/" class="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -36,11 +37,11 @@
 <script>
     let seconds = 60;
     const countdownEl = document.getElementById('countdown');
-    
+
     const timer = setInterval(() => {
         seconds--;
         countdownEl.textContent = seconds + 's';
-        
+
         if (seconds <= 0) {
             clearInterval(timer);
             countdownEl.textContent = 'Ready';
@@ -49,4 +50,5 @@
         }
     }, 1000);
 </script>
+</div>
 {{end}}

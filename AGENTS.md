@@ -119,7 +119,7 @@ doSomething() // ignoring error
 ## Agent Guidelines
 
 - **No Unsolicited Builds**: Do not perform build operations unless explicitly requested by the user.
-- **Concise English Comments**: Use single-line "what" comments. Avoid verbose or redundant explanations.
+- **Concise Comments Only**: Do NOT use verbose comments. Use short, single-line "what" comments only when necessary. Avoid explaining the obvious.
 
 ## Testing
 
