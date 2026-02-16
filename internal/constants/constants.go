@@ -15,7 +15,7 @@ var (
 	DefaultServerURL = "http://localhost"
 
 	// Version can be overwritten at build time using -ldflags
-	Version = "0.1.6"
+	Version = "0.1.7"
 )
 
 const (
