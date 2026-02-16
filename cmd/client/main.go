@@ -174,17 +174,15 @@ func main() {
 
 	printStep(1, "Local server configuration")
 	printHint("Target: " + targetHost + ":" + strconv.Itoa(port))
-	printHint("HTTPS required for local connection?")
-	fmt.Printf("  %sHTTPS? [y/N]:%s ", colorBold, colorReset)
-	useTLSStr, _ := reader.ReadString('\n')
-	useTLSStr = strings.TrimSpace(useTLSStr)
-	useTLS := strings.ToLower(useTLSStr) == "y"
+	fmt.Printf("  %sProtocol:%s ", colorBold, colorReset)
+
+	// Auto-detect local protocol
+	useTLS := detectProtocol(targetHost, port)
 	if useTLS {
-		printHint(colorGreen + "→ HTTPS enabled" + colorReset)
+		fmt.Printf("%sHTTPS (auto-detected)%s\n", colorGreen, colorReset)
 	} else {
-		printHint("→ HTTP")
+		fmt.Printf("HTTP (auto-detected)\n")
 	}
-	fmt.Println()
 
 	printStep(2, "Password (optional)")
 	printHint("Leave empty for 'No Password' login access")
@@ -415,4 +413,25 @@ func registerTunnel(serverURL string, config types.ConfigRequest, skipTLSVerify 
 	}
 
 	return &result, nil
+}
+
+func detectProtocol(host string, port int) bool {
+	target := fmt.Sprintf("%s:%d", host, port)
+
+	// Create a Dialer with a timeout
+	dialer := &net.Dialer{
+		Timeout: 2 * time.Second,
+	}
+
+	// Try to connect via TLS
+	conn, err := tls.DialWithDialer(dialer, "tcp", target, &tls.Config{
+		InsecureSkipVerify: true,
+	})
+
+	if err == nil {
+		conn.Close()
+		return true // It accepted a TLS handshake -> HTTPS
+	}
+
+	return false // Fallback to HTTP
 }
