@@ -329,7 +329,6 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 		if ok && sessFromCookie != nil {
 			authenticated = true
 			sess = sessFromCookie
-			s.Store.Save(sess)
 		}
 	}
 
