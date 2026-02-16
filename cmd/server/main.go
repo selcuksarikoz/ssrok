@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -42,41 +41,6 @@ var (
 	bruteProtector *security.BruteForceProtector
 	auditLogger    *security.AuditLogger
 )
-
-var hopByHopHeaders = map[string]bool{
-	"Connection":          true,
-	"Keep-Alive":          true,
-	"Proxy-Authenticate":  true,
-	"Proxy-Authorization": true,
-	"Te":                  true,
-	"Trailers":            true,
-	"Transfer-Encoding":   true,
-	"Upgrade":             true,
-}
-
-var sensitiveRequestHeaders = map[string]bool{
-	"Cookie": true,
-}
-
-var dangerousResponseHeaders = map[string]bool{
-	"Set-Cookie":                true,
-	"Strict-Transport-Security": true,
-	"Content-Security-Policy":   true,
-	"X-Frame-Options":           true,
-	"X-Xss-Protection":          true,
-	"X-Content-Type-Options":    true,
-}
-
-var hopByHopHeadersNames = []string{
-	"Connection",
-	"Keep-Alive",
-	"Proxy-Authenticate",
-	"Proxy-Authorization",
-	"Te",
-	"Trailers",
-	"Transfer-Encoding",
-	"Upgrade",
-}
 
 func init() {
 	var err error
@@ -153,26 +117,6 @@ func renderTemplate(w http.ResponseWriter, name string, data map[string]interfac
 	}
 }
 
-type gzipResponseWriter struct {
-	http.ResponseWriter
-	*gzip.Writer
-}
-
-func (w *gzipResponseWriter) Header() http.Header {
-	return w.ResponseWriter.Header()
-}
-
-func (w *gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
-}
-
-func (w *gzipResponseWriter) Flush() {
-	w.Writer.Flush()
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
-
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
@@ -213,7 +157,7 @@ func gzipMiddleware(next http.Handler) http.Handler {
 
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Del("Content-Length")
-		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
+		next.ServeHTTP(&utils.GzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
 	})
 }
 
@@ -383,7 +327,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	// Build host with port for URL
 	urlHost := host
-	if !isStandardPort(scheme, serverPort) {
+	if !utils.IsStandardPort(scheme, serverPort) {
 		urlHost = host + ":" + serverPort
 	}
 
@@ -779,7 +723,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 
 	// Prepare request for forwarding via r.Write
 	// strip hop-by-hop headers
-	for _, h := range hopByHopHeadersNames {
+	for _, h := range utils.HopByHopHeadersNames {
 		r.Header.Del(h)
 	}
 
@@ -922,7 +866,7 @@ func proxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path
 	}
 
 	for key, values := range resp.Header {
-		if !hopByHopHeaders[key] && !dangerousResponseHeaders[key] && key != "Content-Length" {
+		if !utils.HopByHopHeaders[key] && !utils.DangerousResponseHeaders[key] && key != "Content-Length" {
 			for _, value := range values {
 				w.Header().Add(key, value)
 			}
@@ -996,14 +940,4 @@ func cleanup() {
 		log.Printf("Closing tunnel: %s", uuid)
 		t.Close()
 	}
-}
-
-func isStandardPort(scheme, port string) bool {
-	if scheme == "http" && port == "80" {
-		return true
-	}
-	if scheme == "https" && port == "443" {
-		return true
-	}
-	return false
 }
