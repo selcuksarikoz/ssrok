@@ -548,9 +548,19 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !sess.CheckRateLimit(clientIP) {
+		store.Save(sess)
+
 		if auditLogger != nil {
 			auditLogger.LogRateLimit(clientIP, tunnelUUID)
 		}
+
+		tunnelMu.RLock()
+		tLog, okLog := tunnels[tunnelUUID]
+		tunnelMu.RUnlock()
+		if okLog {
+			tLog.SendLog(fmt.Sprintf("⛔ Rate limit exceeded: %s", clientIP))
+		}
+
 		log.Printf("⛔ Rate limit exceeded: %s", clientIP)
 		w.WriteHeader(http.StatusTooManyRequests)
 		renderTemplate(w, "ratelimit.html", map[string]interface{}{
@@ -558,6 +568,8 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Save the session with the updated request count/timestamp
+	store.Save(sess)
 
 	var authenticated bool
 	var extraPath string

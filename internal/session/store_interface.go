@@ -13,6 +13,8 @@ type SessionData struct {
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	TunnelActive bool
+	RequestCount map[string]int
+	LastRequest  map[string]time.Time
 }
 
 type StoreInterface interface {

@@ -40,13 +40,15 @@ func (s *Session) CheckRateLimit(ip string) bool {
 	defer s.mu.Unlock()
 
 	now := time.Now()
-	lastReq, exists := s.LastRequest[ip]
+	windowStart, exists := s.LastRequest[ip]
 
-	if !exists || now.Sub(lastReq) > constants.RateLimitWindow {
+	// Use LastRequest as the start of the rate limit window
+	// If window expired (or new visitor), reset everything
+	if !exists || now.Sub(windowStart) > constants.RateLimitWindow {
+		s.LastRequest[ip] = now
 		s.RequestCount[ip] = 0
 	}
 
-	s.LastRequest[ip] = now
 	s.RequestCount[ip]++
 
 	return s.RequestCount[ip] <= s.RateLimit

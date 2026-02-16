@@ -63,6 +63,8 @@ func (st *RedisStore) Save(session *Session) {
 		CreatedAt:    session.CreatedAt,
 		ExpiresAt:    session.ExpiresAt,
 		TunnelActive: session.TunnelActive,
+		RequestCount: session.RequestCount,
+		LastRequest:  session.LastRequest,
 	}
 
 	jsonData, err := json.Marshal(data)
@@ -115,8 +117,15 @@ func (st *RedisStore) Get(uuid string) (*Session, bool) {
 		CreatedAt:    sd.CreatedAt,
 		ExpiresAt:    sd.ExpiresAt,
 		TunnelActive: sd.TunnelActive,
-		RequestCount: make(map[string]int),
-		LastRequest:  make(map[string]time.Time),
+		RequestCount: sd.RequestCount,
+		LastRequest:  sd.LastRequest,
+	}
+
+	if session.RequestCount == nil {
+		session.RequestCount = make(map[string]int)
+	}
+	if session.LastRequest == nil {
+		session.LastRequest = make(map[string]time.Time)
 	}
 
 	if session.IsExpired() {

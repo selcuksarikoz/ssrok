@@ -116,6 +116,11 @@ doSomething() // ignoring error
 - No sensitive data (passwords, tokens)
 - Include session/request IDs
 
+## Agent Guidelines
+
+- **No Unsolicited Builds**: Do not perform build operations unless explicitly requested by the user.
+- **Concise English Comments**: Use single-line "what" comments. Avoid verbose or redundant explanations.
+
 ## Testing
 
 - Min 80% coverage
