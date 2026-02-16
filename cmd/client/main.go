@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -321,62 +322,133 @@ func main() {
 			if strings.Contains(errStr, "websocket: close 1006") ||
 				strings.Contains(errStr, "EOF") ||
 				strings.Contains(errStr, "connection reset") {
-				fmt.Printf("\n  %s✗ Connection to server lost%s\n", colorRed, colorReset)
+				// handled by TUI exit usually, but if TUI active..
 			} else {
-				fmt.Printf("\n  %s✗ connection lost: %v%s\n", colorRed, err, colorReset)
+				// handle error
 			}
 			os.Exit(1)
 		}
 	}()
 
-	// Tunnel info display
-	// Hide 8080 port in TUI for cleaner look (user request)
+	// Hide 8080 port in TUI for cleaner look
 	displayMagicURL := strings.Replace(magicURL, ":8080", "", -1)
 	displayPublicURL := strings.Replace(resp.URL, ":8080", "", -1)
+	dashboardURL := fmt.Sprintf("http://%s:%d", constants.DashboardHost, constants.DashboardPort)
 
 	// Start dashboard
 	dash := dashboard.New(constants.DashboardPort, displayPublicURL, t.Logger())
-	if err := dash.Start(); err != nil {
-		fmt.Printf("  %s⚠ Dashboard failed to start: %v%s\n", colorYellow, err, colorReset)
+	if err := dash.Start(); err == nil {
+		t.SetDashboard(dash)
 	}
 
-	// Set dashboard for logging HTTP requests
-	t.SetDashboard(dash)
+	// Start TUI
+	startTUI(t, displayPublicURL, displayMagicURL, dashboardURL, localAddr, expiresAt, durationDisplay, t.GetLogPath())
+}
 
-	fmt.Println()
-	fmt.Printf("  %s%s● tunnel active%s\n", colorBold, colorGreen, colorReset)
-	fmt.Println()
-	printField("magic url", displayMagicURL, colorCyan)
-	printField("public url", displayPublicURL, colorYellow)
-	dashboardURL := fmt.Sprintf("http://%s:%d", constants.DashboardHost, constants.DashboardPort)
-	printField("dashboard", dashboardURL, colorPurple)
-	printField("local", localAddr, colorReset)
-	fmt.Println()
-	printSep()
-	fmt.Println()
-	printField("expires", fmt.Sprintf("%s (%s)", expiresAt, durationDisplay), colorReset)
-	if t.GetLogPath() != "" {
-		printField("logs", t.GetLogPath(), colorDim)
+func startTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath string) {
+	// Hide cursor and clear screen
+	fmt.Print("\033[?25l")
+	fmt.Print("\033[2J")
+
+	logChan := make(chan string, 100)
+	t.LogCallback = func(msg string) {
+		select {
+		case logChan <- msg:
+		default:
+		}
 	}
-	fmt.Println()
-	printSep()
-	fmt.Println()
-	fmt.Printf("  %smagic url  → direct access (no password)%s\n", colorDim, colorReset)
-	fmt.Printf("  %spublic url → requires password%s\n", colorDim, colorReset)
-	fmt.Printf("  %sdashboard  → view requests at %s:%d%s\n", colorDim, constants.DashboardHost, constants.DashboardPort, colorReset)
-	fmt.Println()
-	fmt.Printf("  %sctrl+c to stop%s\n", colorDim, colorReset)
-	fmt.Println()
 
+	logBuffer := make([]string, 0, 15)
+
+	ticker := time.NewTicker(200 * time.Millisecond)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	<-sigChan
+	defer func() {
+		ticker.Stop()
+		t.Close()
+		fmt.Print("\033[?25h") // Show cursor
+		fmt.Println()
+		fmt.Printf("  %s● disconnected%s\n", colorRed, colorReset)
+	}()
+
+	for {
+		select {
+		case msg := <-logChan:
+			msg = strings.TrimSuffix(msg, "\n")
+			logBuffer = append(logBuffer, msg)
+			if len(logBuffer) > 15 {
+				logBuffer = logBuffer[1:]
+			}
+		case <-ticker.C:
+			renderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer)
+		case <-sigChan:
+			return
+		}
+	}
+}
+
+func renderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath string, logs []string) {
+	// Reset cursor to top-left
+	fmt.Print("\033[H")
+
+	// Header
+	fmt.Printf("  %s%sssrok%s %sv%s%s\n", constants.ColorBold, constants.ColorCyan, constants.ColorReset, constants.ColorBold, constants.Version, constants.ColorReset)
+	fmt.Printf("  %sSecure Ephemeral Reverse Proxy%s\n", constants.ColorDim, constants.ColorReset)
+	fmt.Println()
+
+	// Stats Grid
+	bytesIn := atomic.LoadInt64(&t.BytesIn)
+	bytesOut := atomic.LoadInt64(&t.BytesOut)
+	totalReqs := atomic.LoadInt64(&t.TotalReqs)
+	activeConns := atomic.LoadInt64(&t.ActiveConns)
+
+	fmt.Printf("  %sRecved: %s%10s%s   %sSent: %s%10s%s\n",
+		colorDim, colorReset, formatBytes(bytesIn), colorReset,
+		colorDim, colorReset, formatBytes(bytesOut), colorReset)
+	fmt.Printf("  %sReq:    %s%10d%s   %sActive: %s%8d%s\n",
+		colorDim, colorReset, totalReqs, colorReset,
+		colorDim, colorReset, activeConns, colorReset)
+	fmt.Println()
+
+	// Info
+	printField("magic url", magicURL, colorCyan)
+	printField("public url", publicURL, colorYellow)
+	printField("dashboard", dashboardURL, colorPurple)
+	printField("local", localAddr, colorReset)
+	printField("expires", fmt.Sprintf("%s (%s)", expiresAt, durationDisplay), colorReset)
+	if logPath != "" {
+		printField("logs", logPath, colorDim)
+	}
 
 	fmt.Println()
-	fmt.Printf("  %s● shutting down...%s\n", colorYellow, colorReset)
-	t.Close()
-	fmt.Printf("  %s● done%s\n\n", colorGreen, colorReset)
+	fmt.Printf("  %s%s%s\n", colorDim, strings.Repeat("─", 50), colorReset)
+
+	// Logs area - Clear remaining screen first to remove old logs if list shrunk (unlikely) or resized
+	// Actually better to just print fixed lines.
+	// We'll print "Recent Requests" header
+	// fmt.Printf("  %sRecent Requests%s\n", colorDim, colorReset)
+
+	for _, log := range logs {
+		// Clear line before printing to handle varying lengths
+		fmt.Printf("\033[K%s\n", log)
+	}
+
+	// Clear rest of screen roughly
+	fmt.Print("\033[J")
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 func registerTunnel(serverURL string, config types.ConfigRequest, skipTLSVerify bool) (*types.ConfigResponse, error) {

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ import (
 	"ssrok/internal/dashboard"
 	"ssrok/internal/logger"
 	"ssrok/internal/types"
+	"ssrok/internal/utils"
 )
 
 var upgrader = websocket.Upgrader{
@@ -42,6 +44,12 @@ type Tunnel struct {
 	localAddr   string
 	LogCallback func(string)
 	dashboard   *dashboard.Dashboard
+
+	// Stats
+	BytesIn     int64 // atomic
+	BytesOut    int64 // atomic
+	TotalReqs   int64 // atomic
+	ActiveConns int64 // atomic
 }
 
 func (t *Tunnel) Logger() *logger.Logger {
@@ -72,7 +80,7 @@ func yamuxConfig() *yamux.Config {
 }
 
 func (t *Tunnel) HandleWebSocket() error {
-	wsWrapper := &wsConnWrapper{conn: t.WSConn}
+	wsWrapper := &wsConnWrapper{conn: t.WSConn, tunnel: t}
 
 	session, err := yamux.Server(wsWrapper, yamuxConfig())
 	if err != nil {
@@ -157,6 +165,11 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	if typeBuf[0] != constants.StreamTypeProxy {
 		return
 	}
+
+	// Update stats
+	atomic.AddInt64(&t.TotalReqs, 1)
+	atomic.AddInt64(&t.ActiveConns, 1)
+	defer atomic.AddInt64(&t.ActiveConns, -1)
 
 	startTime := time.Now()
 	logID := uuid.New().String()
@@ -312,21 +325,31 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 		}
 	}
 
-	if t.log != nil && method != "" {
-		go t.log.LogHTTP(method, path, statusCode, duration, userAgent, t.LocalPort)
-
-		emoji := "📥"
-		if statusCode >= 200 && statusCode < 300 {
-			emoji = "✅"
-		} else if statusCode >= 400 {
-			emoji = "❌"
-		} else if statusCode >= 300 {
-			emoji = "🔄"
+	// Filter logs from ignored prefixes
+	shouldLog := true
+	for _, prefix := range constants.IgnoredLogPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			shouldLog = false
+			break
 		}
-		fmt.Printf("  %s %s%s %d %s%s\n", emoji, constants.ColorDim, method, statusCode, path, constants.ColorReset)
 	}
 
-	if t.dashboard != nil {
+	if shouldLog && method != "" {
+		if t.log != nil {
+			go t.log.LogHTTP(method, path, statusCode, duration, userAgent, t.LocalPort)
+		}
+
+		logLine := utils.FormatLog("", method, statusCode, path)
+
+		// Use callback if available (for TUI), otherwise print to stdout
+		if t.LogCallback != nil {
+			t.LogCallback(logLine)
+		} else {
+			fmt.Print(logLine)
+		}
+	}
+
+	if shouldLog && t.dashboard != nil {
 		go t.dashboard.AddLog(types.HTTPLog{
 			ID:         logID,
 			Method:     method,
@@ -393,6 +416,7 @@ type wsConnWrapper struct {
 	log       *logger.Logger
 	localPort int
 	isClient  bool
+	tunnel    *Tunnel
 }
 
 func (w *wsConnWrapper) Read(p []byte) (n int, err error) {
@@ -416,8 +440,13 @@ func (w *wsConnWrapper) Read(p []byte) (n int, err error) {
 		w.reader = nil
 		err = nil
 	}
-	if n > 0 && w.log != nil {
-		w.log.LogData("server->client", p[:n], w.conn.RemoteAddr().String(), w.localPort)
+	if n > 0 {
+		if w.log != nil {
+			w.log.LogData("server->client", p[:n], w.conn.RemoteAddr().String(), w.localPort)
+		}
+		if w.tunnel != nil {
+			atomic.AddInt64(&w.tunnel.BytesIn, int64(n))
+		}
 	}
 	return n, err
 }
@@ -435,6 +464,9 @@ func (w *wsConnWrapper) Write(p []byte) (n int, err error) {
 	}
 	if w.log != nil {
 		w.log.LogData("client->server", p, w.conn.RemoteAddr().String(), w.localPort)
+	}
+	if w.tunnel != nil {
+		atomic.AddInt64(&w.tunnel.BytesOut, int64(len(p)))
 	}
 	return len(p), nil
 }
@@ -480,11 +512,21 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 	remoteAddr := conn.RemoteAddr().String()
 	log.LogEvent(fmt.Sprintf("WebSocket connected to %s", remoteAddr), localPort)
 
+	tunnel := &Tunnel{
+		UUID:      sessionID,
+		WSConn:    conn,
+		LocalPort: localPort,
+		UseTLS:    useTLS,
+		log:       log,
+		localAddr: targetAddr,
+	}
+
 	wsWrapper := &wsConnWrapper{
 		conn:      conn,
 		log:       log,
 		localPort: localPort,
 		isClient:  true,
+		tunnel:    tunnel,
 	}
 
 	session, err := yamux.Client(wsWrapper, yamuxConfig())
@@ -495,19 +537,13 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 		return nil, fmt.Errorf("failed to create yamux client: %w", err)
 	}
 
+	tunnel.Session = session
+
 	log.LogEvent("Yamux session established", localPort)
 
-	tunnel := &Tunnel{
-		UUID:      sessionID,
-		WSConn:    conn,
-		Session:   session,
-		LocalPort: localPort,
-		UseTLS:    useTLS,
-		log:       log,
-		localAddr: targetAddr,
-		LogCallback: func(msg string) {
-			fmt.Printf("  %s%s%s\n", constants.ColorCyan, msg, constants.ColorReset)
-		},
+	// Set default callback
+	tunnel.LogCallback = func(msg string) {
+		fmt.Printf("  %s%s%s\n", constants.ColorCyan, msg, constants.ColorReset)
 	}
 
 	return tunnel, nil

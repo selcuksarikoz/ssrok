@@ -59,6 +59,10 @@ const (
 	EndpointRoot      = "/"
 )
 
+var (
+	IgnoredLogPrefixes = []string{"/_next", "/webpack", "/vite", "/__webpack_hmr"}
+)
+
 const (
 	DashboardHost            = "localhost"
 	DashboardPort            = 31331

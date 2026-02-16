@@ -558,7 +558,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		tLog, okLog := tunnels[tunnelUUID]
 		tunnelMu.RUnlock()
 		if okLog {
-			tLog.SendLog(fmt.Sprintf("⛔ Rate limit exceeded: %s", clientIP))
+			tLog.SendLog(utils.FormatLog("⛔", "RATE", 429, clientIP))
 		}
 
 		log.Printf("⛔ Rate limit exceeded: %s", clientIP)
@@ -602,7 +602,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		tunnelMu.RUnlock()
 
 		if okLog {
-			tLog.SendLog(fmt.Sprintf("=> User connected via Magic URL: %s", clientIP))
+			tLog.SendLog(utils.FormatLog("✨", "AUTH", 200, clientIP))
 		}
 
 		bruteProtector.RecordSuccess(clientIP)
@@ -651,8 +651,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 			if sess.VerifyPassword(password) {
 				log.Printf("✅ User logged in (Password): %s", clientIP)
 				if okLog {
-					tLog.SendLog("=> login is done")
-					tLog.SendLog(fmt.Sprintf("=> User connected: %s", clientIP))
+					tLog.SendLog(utils.FormatLog("✅", "AUTH", 200, clientIP))
 				}
 
 				bruteProtector.RecordSuccess(clientIP)
@@ -672,7 +671,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if okLog {
-				tLog.SendLog("=> password incorrect")
+				tLog.SendLog(utils.FormatLog("❌", "AUTH", 401, clientIP))
 			}
 			bruteProtector.RecordFailure(clientIP)
 			if auditLogger != nil {
@@ -689,7 +688,7 @@ func handleTunnel(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if okLog {
-			tLog.SendLog("=> login page opened")
+			tLog.SendLog(utils.FormatLog("🔐", "VIEW", 200, "/login"))
 		}
 		csrf := session.SignCSRFToken(session.GenerateCSRFToken())
 		renderTemplate(w, "login.html", map[string]interface{}{
