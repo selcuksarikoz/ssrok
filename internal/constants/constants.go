@@ -40,7 +40,7 @@ const (
 )
 
 const (
-	DefaultRateLimit    = 60
+	DefaultRateLimit    = 0
 	RateLimitWindow     = time.Minute
 	UnlimitedRateLimit  = 0
 	MaxConnectionsPerIP = 10
@@ -57,6 +57,15 @@ const (
 	EndpointRegister  = "/api/register"
 	EndpointWebSocket = "/ws/"
 	EndpointRoot      = "/"
+)
+
+const (
+	DashboardHost            = "localhost"
+	DashboardPort            = 31331
+	DashboardMaxLogs         = 1000
+	DashboardWSReadBuffer    = 1024
+	DashboardWSWriteBuffer   = 1024
+	DashboardShutdownTimeout = 5 * time.Second
 )
 
 const (

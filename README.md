@@ -35,12 +35,14 @@ That's it. You'll get:
 ```
    magic url:  https://your-server.app/abc123?token=xyz
    public url: https://your-server.app/abc123
+   dashboard:  http://localhost:31331
    local:      http://localhost:3000
    expires:    60 min
 ```
 
 - **Magic URL** — Share with anyone, no password needed
 - **Public URL** — Password-protected, for sensitive demos
+- **Dashboard** — View real-time requests at `http://localhost:31331`
 
 ## Installation
 
@@ -120,8 +122,27 @@ Make sure to configure the Environment Variables (see below) to match your domai
 | 🎫 **Magic Links**   | URLs with embedded tokens         |
 | ⏱️ **Ephemeral**     | Auto-expire after 1 hour          |
 | 🚦 **Rate Limiting** | Per-IP, per-session throttling    |
+| 📊 **Dashboard**     | Real-time request inspector       |
 | 📝 **Session Logs**  | JSON logs for each tunnel         |
 | 💾 **Redis**         | Optional persistence              |
+
+## Dashboard
+
+When you start a tunnel, a local dashboard is automatically available at `http://localhost:31331`. This real-time request inspector shows:
+
+- **Live Requests** — All HTTP requests passing through the tunnel
+- **Method & Path** — GET, POST, PUT, DELETE with full URLs
+- **Status Codes** — Color-coded responses (green=success, red=error, yellow=redirect)
+- **Response Time** — Request duration in milliseconds
+- **Request Details** — Click any request to see headers and response info
+
+```
+   GET  /api/users        200  12ms
+   POST /api/login        401  45ms  
+   GET  /static/app.js   200  8ms
+```
+
+The dashboard helps you debug API responses, inspect webhook payloads, and monitor traffic in real-time.
 
 ## Security & Limitations
 
@@ -129,7 +150,7 @@ Make sure to configure the Environment Variables (see below) to match your domai
 
 - **Token Authentication**: Required for all connections to prevent unauthorized usage.
 - **Password Protection**: Optional SHA256 password protection for your public URLs.
-- **Rate Limiting**: Built-in DDoS prevention (default: 60 req/min/IP), fully configurable.
+- **Rate Limiting**: Built-in DDoS prevention (default: unlimited), fully configurable.
 - **Brute Force Protection**: IP banning after 5 failed authentication attempts (15 min ban).
 - **Audit Logging**: Comprehensive logs for all security-critical events.
 
@@ -176,7 +197,7 @@ curl -X POST https://your-server.com/api/register \
   -d '{
     "port": 3000,
     "password": "optional",
-    "rate_limit": 60,
+    "rate_limit": 0,
     "use_tls": false,
     "expires_in": "1h"
   }'

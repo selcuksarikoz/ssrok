@@ -19,8 +19,9 @@ import (
 	"time"
 
 	"ssrok/internal/constants"
-	"ssrok/internal/protocol"
+	"ssrok/internal/dashboard"
 	"ssrok/internal/tunnel"
+	"ssrok/internal/types"
 	"ssrok/internal/utils"
 )
 
@@ -245,7 +246,7 @@ func main() {
 	printSep()
 	fmt.Printf("  %sConnecting...%s\n", colorDim, colorReset)
 
-	config := protocol.ConfigRequest{
+	config := types.ConfigRequest{
 		Port:      port,
 		Password:  password,
 		RateLimit: rateLimit,
@@ -335,11 +336,22 @@ func main() {
 	displayMagicURL := strings.Replace(magicURL, ":8080", "", -1)
 	displayPublicURL := strings.Replace(resp.URL, ":8080", "", -1)
 
+	// Start dashboard
+	dash := dashboard.New(constants.DashboardPort, displayPublicURL, t.Logger())
+	if err := dash.Start(); err != nil {
+		fmt.Printf("  %s⚠ Dashboard failed to start: %v%s\n", colorYellow, err, colorReset)
+	}
+
+	// Set dashboard for logging HTTP requests
+	t.SetDashboard(dash)
+
 	fmt.Println()
 	fmt.Printf("  %s%s● tunnel active%s\n", colorBold, colorGreen, colorReset)
 	fmt.Println()
 	printField("magic url", displayMagicURL, colorCyan)
 	printField("public url", displayPublicURL, colorYellow)
+	dashboardURL := fmt.Sprintf("http://%s:%d", constants.DashboardHost, constants.DashboardPort)
+	printField("dashboard", dashboardURL, colorPurple)
 	printField("local", localAddr, colorReset)
 	fmt.Println()
 	printSep()
@@ -353,6 +365,7 @@ func main() {
 	fmt.Println()
 	fmt.Printf("  %smagic url  → direct access (no password)%s\n", colorDim, colorReset)
 	fmt.Printf("  %spublic url → requires password%s\n", colorDim, colorReset)
+	fmt.Printf("  %sdashboard  → view requests at %s:%d%s\n", colorDim, constants.DashboardHost, constants.DashboardPort, colorReset)
 	fmt.Println()
 	fmt.Printf("  %sctrl+c to stop%s\n", colorDim, colorReset)
 	fmt.Println()
@@ -368,7 +381,7 @@ func main() {
 	fmt.Printf("  %s● done%s\n\n", colorGreen, colorReset)
 }
 
-func registerTunnel(serverURL string, config protocol.ConfigRequest, skipTLSVerify bool) (*protocol.ConfigResponse, error) {
+func registerTunnel(serverURL string, config types.ConfigRequest, skipTLSVerify bool) (*types.ConfigResponse, error) {
 	jsonData, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
@@ -396,7 +409,7 @@ func registerTunnel(serverURL string, config protocol.ConfigRequest, skipTLSVeri
 		return nil, fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(bytes.TrimSpace(body)))
 	}
 
-	var result protocol.ConfigResponse
+	var result types.ConfigResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}

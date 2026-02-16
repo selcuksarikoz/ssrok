@@ -1,20 +1,26 @@
 package tunnel
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/yamux"
 
 	"ssrok/internal/constants"
+	"ssrok/internal/dashboard"
 	"ssrok/internal/logger"
+	"ssrok/internal/types"
 )
 
 var upgrader = websocket.Upgrader{
@@ -35,6 +41,15 @@ type Tunnel struct {
 	log         *logger.Logger
 	localAddr   string
 	LogCallback func(string)
+	dashboard   *dashboard.Dashboard
+}
+
+func (t *Tunnel) Logger() *logger.Logger {
+	return t.log
+}
+
+func (t *Tunnel) SetDashboard(d *dashboard.Dashboard) {
+	t.dashboard = d
 }
 
 func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool) *Tunnel {
@@ -97,34 +112,59 @@ func (t *Tunnel) Process() error {
 	}
 }
 
+// Helper for limiting log buffer size
+type limitedBuffer struct {
+	buf     *bytes.Buffer
+	limit   int
+	written int
+}
+
+func (l *limitedBuffer) Write(p []byte) (n int, err error) {
+	if l.written >= l.limit {
+		return len(p), nil
+	}
+	remaining := l.limit - l.written
+	if len(p) > remaining {
+		l.buf.Write(p[:remaining])
+		l.written += remaining
+		return len(p), nil
+	}
+	n, err = l.buf.Write(p)
+	l.written += n
+	return n, err
+}
+
 func (t *Tunnel) handleStream(stream net.Conn) {
 	defer stream.Close()
 
-	// Read stream type
 	typeBuf := make([]byte, 1)
 	if _, err := io.ReadFull(stream, typeBuf); err != nil {
 		return
 	}
 
 	if typeBuf[0] == constants.StreamTypeLog {
-		// Log message stream
 		msg, err := io.ReadAll(stream)
 		if err == nil && len(msg) > 0 {
 			if t.LogCallback != nil {
 				t.LogCallback(string(msg))
 			} else {
-				// Default fallback
 				fmt.Printf("Remote: %s\n", string(msg))
 			}
 		}
 		return
 	}
 
-	// Constants.StreamTypeProxy or unknown (treat as proxy for robustness if feasible, but better strict)
-	// If it's not proxy, we could error, but let's assume it is normal traffic if not log.
 	if typeBuf[0] != constants.StreamTypeProxy {
 		return
 	}
+
+	startTime := time.Now()
+	logID := uuid.New().String()
+
+	// Setup Request Logger (limit 1MB)
+	var requestLogBuf bytes.Buffer
+	requestLogger := &limitedBuffer{buf: &requestLogBuf, limit: 1024 * 1024}
+	loggedStream := io.TeeReader(stream, requestLogger)
 
 	var localConn net.Conn
 	var err error
@@ -156,10 +196,43 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	defer PutBuffer(buf1)
 	defer PutBuffer(buf2)
 
+	// Setup Response Logger (limit 1MB)
+	var responseLogBuf bytes.Buffer
+	responseLogger := &limitedBuffer{buf: &responseLogBuf, limit: 1024 * 1024}
+	loggedLocalConn := io.TeeReader(localConn, responseLogger)
+
 	errChan := make(chan error, 2)
 
 	go func() {
-		_, err := io.CopyBuffer(localConn, stream, buf1)
+		// Use bufio NewReader on the logged stream to handle headers correctly
+		reader := bufio.NewReader(loggedStream)
+		var headerBuf bytes.Buffer
+
+		// Read request line
+		line, err := reader.ReadString('\n')
+		headerBuf.WriteString(line)
+
+		if err == nil {
+			// Read headers manually to ensure we send them to localConn
+			for {
+				line, err = reader.ReadString('\n')
+				headerBuf.WriteString(line)
+				if err != nil || line == "\r\n" {
+					break
+				}
+			}
+		}
+
+		// Write captured headers to local connection
+		if headerBuf.Len() > 0 {
+			if _, err := localConn.Write(headerBuf.Bytes()); err != nil {
+				errChan <- err
+				return
+			}
+		}
+
+		// Copy the rest of the stream using the buffered reader
+		_, err = io.CopyBuffer(localConn, reader, buf1)
 		if tc, ok := localConn.(*net.TCPConn); ok {
 			tc.CloseWrite()
 		}
@@ -167,11 +240,113 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	}()
 
 	go func() {
-		_, err := io.CopyBuffer(stream, localConn, buf2)
+		// Capture response via loggedLocalConn
+		_, err := io.CopyBuffer(stream, loggedLocalConn, buf2)
 		errChan <- err
 	}()
 
 	<-errChan
+	duration := time.Since(startTime)
+
+	// Parse Logs from captured buffers
+	var method, path, userAgent, clientIP string
+	var reqHeaders, respHeaders map[string][]string
+	var reqBody, respBody string
+	var queryParams map[string][]string
+	var statusCode int
+
+	// Parse Request
+	reqReader := bufio.NewReader(&requestLogBuf)
+	req, err := http.ReadRequest(reqReader)
+	if err == nil {
+		method = req.Method
+		path = req.URL.Path
+		userAgent = req.UserAgent()
+		reqHeaders = req.Header
+		queryParams = req.URL.Query()
+
+		if fwd := req.Header.Get("X-Forwarded-For"); fwd != "" {
+			parts := strings.Split(fwd, ",")
+			if len(parts) > 0 {
+				clientIP = strings.TrimSpace(parts[0])
+			}
+		}
+
+		if b, err := io.ReadAll(req.Body); err == nil && len(b) > 0 {
+			reqBody = string(b)
+		}
+	} else {
+		// Fallback: Try to at least parse the Method/Path from buffer string if Reader failed
+		// (This covers cases where body was truncated but headers are there)
+		logStr := requestLogBuf.String()
+		if idx := strings.Index(logStr, "\n"); idx > 0 {
+			line := logStr[:idx]
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				method = parts[0]
+				path = parts[1]
+			}
+		}
+	}
+
+	// Parse Response
+	respReader := bufio.NewReader(&responseLogBuf)
+	if resp, err := http.ReadResponse(respReader, req); err == nil {
+		statusCode = resp.StatusCode
+		respHeaders = resp.Header
+		if b, err := io.ReadAll(resp.Body); err == nil && len(b) > 0 {
+			respBody = string(b)
+		}
+	} else {
+		// Fallback for response status code if parsing failed
+		// Try to read first line
+		logStr := responseLogBuf.String()
+		if idx := strings.Index(logStr, "\n"); idx > 0 {
+			line := logStr[:idx]
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				if code, err := strconv.Atoi(parts[1]); err == nil {
+					statusCode = code
+				}
+			}
+		}
+	}
+
+	if t.log != nil && method != "" {
+		go t.log.LogHTTP(method, path, statusCode, duration, userAgent, t.LocalPort)
+
+		emoji := "📥"
+		if statusCode >= 200 && statusCode < 300 {
+			emoji = "✅"
+		} else if statusCode >= 400 {
+			emoji = "❌"
+		} else if statusCode >= 300 {
+			emoji = "🔄"
+		}
+		fmt.Printf("  %s %s%s %d %s%s\n", emoji, constants.ColorDim, method, statusCode, path, constants.ColorReset)
+	}
+
+	if t.dashboard != nil {
+		go t.dashboard.AddLog(types.HTTPLog{
+			ID:         logID,
+			Method:     method,
+			Path:       path,
+			StatusCode: statusCode,
+			Duration:   duration,
+			Timestamp:  startTime,
+			UserAgent:  userAgent,
+			ClientIP:   clientIP,
+			Request: types.RequestDetails{
+				Headers:     reqHeaders,
+				Body:        reqBody,
+				QueryParams: queryParams,
+			},
+			Response: types.ResponseDetails{
+				Headers: respHeaders,
+				Body:    respBody,
+			},
+		})
+	}
 }
 
 func (t *Tunnel) Close() error {

@@ -8,18 +8,9 @@ import (
 	"runtime"
 	"sync"
 	"time"
-)
 
-type LogEntry struct {
-	Timestamp  time.Time `json:"timestamp"`
-	Direction  string    `json:"direction"`
-	Type       string    `json:"type"`
-	Size       int       `json:"size"`
-	RemoteAddr string    `json:"remote_addr,omitempty"`
-	LocalPort  int       `json:"local_port,omitempty"`
-	Error      string    `json:"error,omitempty"`
-	Message    string    `json:"message,omitempty"`
-}
+	"ssrok/internal/types"
+)
 
 type Logger struct {
 	mu        sync.RWMutex
@@ -66,9 +57,8 @@ func getLogDir() (string, error) {
 		logDir = filepath.Join(homeDir, "AppData", "Local", "ssrok", "logs")
 	case "darwin":
 		logDir = filepath.Join(homeDir, "Library", "Logs", "ssrok")
-	default: // linux and others
+	default:
 		logDir = filepath.Join(homeDir, ".local", "share", "ssrok", "logs")
-		// Use XDG_DATA_HOME if set
 		if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
 			logDir = filepath.Join(xdgData, "ssrok", "logs")
 		}
@@ -77,7 +67,7 @@ func getLogDir() (string, error) {
 	return logDir, nil
 }
 
-func (l *Logger) Log(entry LogEntry) {
+func (l *Logger) Log(entry types.HTTPLog) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -86,31 +76,39 @@ func (l *Logger) Log(entry LogEntry) {
 }
 
 func (l *Logger) LogData(direction string, data []byte, remoteAddr string, localPort int) {
-	l.Log(LogEntry{
-		Direction:  direction,
-		Type:       "data",
-		Size:       len(data),
-		RemoteAddr: remoteAddr,
-		LocalPort:  localPort,
+	l.Log(types.HTTPLog{
+		Method:     direction,
+		Path:       "data",
+		StatusCode: len(data),
+		Timestamp:  time.Now(),
 	})
 }
 
 func (l *Logger) LogError(direction string, err error, remoteAddr string, localPort int) {
-	l.Log(LogEntry{
-		Direction:  direction,
-		Type:       "error",
-		Error:      err.Error(),
-		RemoteAddr: remoteAddr,
-		LocalPort:  localPort,
+	l.Log(types.HTTPLog{
+		Method:     direction,
+		Path:       "error",
+		StatusCode: 0,
+		Timestamp:  time.Now(),
 	})
 }
 
 func (l *Logger) LogEvent(message string, localPort int) {
-	l.Log(LogEntry{
-		Direction: "client",
-		Type:      "event",
-		Message:   message,
-		LocalPort: localPort,
+	l.Log(types.HTTPLog{
+		Method:    "event",
+		Path:      message,
+		Timestamp: time.Now(),
+	})
+}
+
+func (l *Logger) LogHTTP(method, path string, statusCode int, duration time.Duration, userAgent string, localPort int) {
+	l.Log(types.HTTPLog{
+		Method:     method,
+		Path:       path,
+		StatusCode: statusCode,
+		Duration:   duration,
+		UserAgent:  userAgent,
+		Timestamp:  time.Now(),
 	})
 }
 

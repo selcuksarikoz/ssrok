@@ -1,12 +1,12 @@
 {{define "content"}}
-<div class="glass-card animate-fade-in w-full max-w-md p-8 rounded-2xl">
+<div class="w-full max-w-md p-8 rounded-2xl bg-gray-800/80 backdrop-blur-xl border border-gray-700/50 shadow-2xl">
     <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full glass-card mb-4 bg-red-500/10 border-red-500/30">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
             </svg>
         </div>
-        <h1 class="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-red-600">
+        <h1 class="text-3xl font-bold mb-2 text-white">
             Tunnel Disconnected
         </h1>
         <p class="text-gray-400">
@@ -15,7 +15,7 @@
     </div>
 
     <div class="space-y-4">
-        <div class="bg-black/30 w-full p-4 rounded-xl border border-white/10">
+        <div class="bg-gray-900/50 w-full p-4 rounded-xl border border-gray-700">
             <p class="text-sm text-gray-300 mb-3">Why is my tunnel not connected?</p>
             <ul class="text-left text-xs text-gray-400 space-y-2">
                 <li class="flex items-start gap-2">
@@ -41,22 +41,22 @@
             </ul>
         </div>
 
-        <div class="bg-black/20 w-full p-4 rounded-xl border border-white/5">
+        <div class="bg-gray-900/30 w-full p-4 rounded-xl border border-gray-700/50">
             <p class="text-xs text-gray-500 mb-2">To reconnect:</p>
-            <code class="text-xs text-gray-400 block bg-black/40 p-2 rounded-lg overflow-x-auto">
+            <code class="text-xs text-gray-400 block bg-gray-800 p-2 rounded-lg overflow-x-auto">
                 ssrok {{.Port}}
             </code>
         </div>
 
         <div class="flex flex-col gap-3 mt-6">
-            <button onclick="window.location.reload()" class="glass-button w-full py-3 px-4 rounded-xl font-medium text-white flex items-center justify-center">
+            <button onclick="window.location.reload()" class="w-full py-3 px-4 rounded-xl font-medium text-white flex items-center justify-center bg-brand-500 hover:bg-brand-400 transition-colors">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
                 Retry Connection
             </button>
 
-            <a href="/" class="w-full py-3 px-4 rounded-xl font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center justify-center">
+            <a href="/" class="w-full py-3 px-4 rounded-xl font-medium text-gray-400 hover:text-white hover:bg-gray-700 transition-colors flex items-center justify-center">
                 Back to Home
             </a>
         </div>

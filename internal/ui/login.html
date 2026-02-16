@@ -1,13 +1,13 @@
 {{define "content"}}
-<div class="w-full max-w-md animate-fade-in">
-    <div class="glass-card rounded-2xl p-8">
+<div class="w-full max-w-md">
+    <div class="bg-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 shadow-2xl">
         <div class="text-center mb-8">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center pulse-glow">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
                 <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                 </svg>
             </div>
-            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+            <h1 class="text-3xl font-bold text-white">
                 Secure Access
             </h1>
             <p class="text-gray-400 mt-2 text-sm">Enter the password to access this tunnel</p>
@@ -16,7 +16,7 @@
         {{if .Error}}
         <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
             <div class="flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
                 {{.Error}}
@@ -32,19 +32,19 @@
                     type="password"
                     name="password"
                     autofocus
-                    class="glass-input w-full px-4 py-3 rounded-xl text-white placeholder-gray-500"
+                    class="w-full px-4 py-3 rounded-xl bg-gray-900/50 border border-gray-600/50 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
                     placeholder="Enter password..."
                 >
             </div>
 
-            <button type="submit" class="glass-button w-full py-3 rounded-xl font-semibold text-white">
+            <button type="submit" class="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-400 hover:to-purple-500 transition-all shadow-lg shadow-brand-500/25">
                 Access Tunnel
             </button>
         </form>
 
         <div class="mt-6 text-center">
             <p class="text-xs text-gray-500">
-                Protected by <span class="text-indigo-400 font-medium">ssrok</span>
+                Protected by <span class="text-brand-400 font-medium">ssrok</span>
             </p>
         </div>
     </div>

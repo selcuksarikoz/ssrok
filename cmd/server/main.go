@@ -22,10 +22,10 @@ import (
 	"github.com/gorilla/websocket"
 
 	"ssrok/internal/constants"
-	"ssrok/internal/protocol"
 	"ssrok/internal/security"
 	"ssrok/internal/session"
 	"ssrok/internal/tunnel"
+	"ssrok/internal/types"
 	"ssrok/internal/ui"
 	"ssrok/internal/utils"
 )
@@ -331,7 +331,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 
-	var req protocol.ConfigRequest
+	var req types.ConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, constants.MsgInvalidJSON, http.StatusBadRequest)
 		return
@@ -390,7 +390,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	var tunnelURL string
 	tunnelURL = utils.ConstructURL(scheme, urlHost, tunnelUUID)
 
-	resp := protocol.ConfigResponse{
+	resp := types.ConfigResponse{
 		UUID:      tunnelUUID,
 		URL:       tunnelURL,
 		Token:     token,
