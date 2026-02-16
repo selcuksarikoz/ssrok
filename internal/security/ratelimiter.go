@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ssrok/internal/constants"
 )
 
 type ConnectionLimiter struct {
@@ -52,7 +54,7 @@ var (
 
 func initTrustedProxies() {
 	proxyOnce.Do(func() {
-		defaultCIDRs := []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+		defaultCIDRs := constants.TrustedCIDRs
 		if env := os.Getenv("SSROK_TRUSTED_PROXIES"); env != "" {
 			defaultCIDRs = strings.Split(env, ",")
 		}
@@ -171,7 +173,7 @@ func (bf *BruteForceProtector) RecordSuccess(ip string) {
 }
 
 func (bf *BruteForceProtector) cleanup() {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(constants.AuthRetryTicker)
 	defer ticker.Stop()
 
 	for range ticker.C {

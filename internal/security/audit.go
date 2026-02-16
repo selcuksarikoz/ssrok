@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"ssrok/internal/constants"
 )
 
 type AuditEvent struct {
@@ -68,11 +70,11 @@ func getAuditLogDir() (string, error) {
 
 	switch runtime.GOOS {
 	case "windows":
-		return filepath.Join(home, "AppData", "Local", "ssrok", "audit"), nil
+		return filepath.Join(home, "AppData", "Local", constants.AppName, "audit"), nil
 	case "darwin":
-		return filepath.Join(home, "Library", "Logs", "ssrok", "audit"), nil
+		return filepath.Join(home, "Library", "Logs", constants.AppName, "audit"), nil
 	default:
-		return filepath.Join(home, ".local", "share", "ssrok", "audit"), nil
+		return filepath.Join(home, ".local", "share", constants.AppName, "audit"), nil
 	}
 }
 

@@ -13,7 +13,7 @@ func ParseTarget(arg string) (string, int, error) {
 	var targetPort int
 
 	if p, err := strconv.Atoi(arg); err == nil {
-		targetHost = "localhost"
+		targetHost = constants.DefaultTargetHost
 		targetPort = p
 	} else {
 		host, portStr, err := net.SplitHostPort(arg)
@@ -21,7 +21,7 @@ func ParseTarget(arg string) (string, int, error) {
 			return "", 0, fmt.Errorf("invalid argument: %s", arg)
 		}
 		if host == "" {
-			targetHost = "localhost"
+			targetHost = constants.DefaultTargetHost
 		} else {
 			targetHost = host
 		}

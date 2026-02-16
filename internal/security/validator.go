@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"ssrok/internal/constants"
 )
 
-var uuidRegex = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+var uuidRegex = regexp.MustCompile(constants.DefaultUUIDRegex)
 
 func ValidateUUID(uuid string) bool {
 	if uuid == "" {
@@ -16,11 +18,11 @@ func ValidateUUID(uuid string) bool {
 }
 
 func ValidateToken(token string) bool {
-	return token != "" && len(token) >= 32
+	return token != "" && len(token) >= constants.MinTokenLength
 }
 
 func ValidatePort(port int) bool {
-	return port > 0 && port <= 65535
+	return port >= constants.MinPort && port <= constants.MaxPort
 }
 
 func ValidateOrigin(r *http.Request, allowedOrigins []string) bool {

@@ -10,6 +10,18 @@ const (
 	DefaultPort = "80"
 )
 
+const (
+	AppName           = "ssrok"
+	DefaultTargetHost = "localhost"
+)
+
+var (
+	StandardWebPorts = map[string]bool{
+		"80":  true,
+		"443": true,
+	}
+)
+
 var (
 	// DefaultServerURL can be overwritten at build time using -ldflags
 	DefaultServerURL = "http://localhost"
@@ -30,6 +42,14 @@ const (
 	CleanupInterval    = 30 * time.Second
 	StreamTypeProxy    = 0x00
 	StreamTypeLog      = 0x01
+	WSCompression      = false
+)
+
+const (
+	YamuxMaxStreamWindowSize = 4 * 1024 * 1024
+	YamuxAcceptBacklog       = 512
+	YamuxEnableKeepAlive     = true
+	YamuxKeepAliveInterval   = 30 * time.Second
 )
 
 const (
@@ -47,6 +67,9 @@ const (
 	UnlimitedRateLimit  = 0
 	MaxConnectionsPerIP = 10
 	MaxBodySize         = 100 * 1024 * 1024 // 100MB
+	MaxConfigBodySize   = 1024              // 1KB for config/register
+	MaxAuthBodySize     = 4096              // 4KB for login forms
+	MaxLogBufferSize    = 1024 * 1024       // 1MB per request/response for logging
 	RequestTimeout      = 30 * time.Second
 )
 
@@ -56,9 +79,26 @@ const (
 )
 
 const (
-	EndpointRegister  = "/api/register"
-	EndpointWebSocket = "/ws/"
 	EndpointRoot      = "/"
+	EndpointRegister  = "/register"
+	EndpointWebSocket = "/ws"
+	CookieUUIDContext = "uuid"
+)
+
+const (
+	MinTokenLength   = 32
+	AuthRetryTicker  = 5 * time.Minute
+	DefaultUUIDRegex = `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
+)
+
+var (
+	TrustedCIDRs = []string{
+		"127.0.0.0/8",
+		"::1/128",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+	}
 )
 
 var (
@@ -112,6 +152,18 @@ const (
 	MsgTunnelNotFound    = "Tunnel not found or expired"
 	MsgTunnelNotActive   = "Tunnel not connected"
 	MsgRateLimitExceeded = "Rate limit exceeded"
-	MsgUsage             = "Usage: ssrok <port>"
 	MsgExample           = "Example: ssrok 3000"
+	MsgUsage             = "Usage: ssrok <port> or ssrok <ip>:<port>"
+)
+
+const (
+	SymbolSuccess  = "✅"
+	SymbolError    = "❌"
+	SymbolRedirect = "🔄"
+	SymbolIncoming = "📥"
+	SymbolAuth     = "✨"
+	SymbolLock     = "🔐"
+	SymbolWarning  = "⛔"
+	SymbolView     = "👤"
+	SymbolNotify   = "🔔"
 )

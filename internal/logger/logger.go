@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"ssrok/internal/constants"
 	"ssrok/internal/types"
 )
 
@@ -54,13 +55,13 @@ func getLogDir() (string, error) {
 	var logDir string
 	switch runtime.GOOS {
 	case "windows":
-		logDir = filepath.Join(homeDir, "AppData", "Local", "ssrok", "logs")
+		logDir = filepath.Join(homeDir, "AppData", "Local", constants.AppName, "logs")
 	case "darwin":
-		logDir = filepath.Join(homeDir, "Library", "Logs", "ssrok")
+		logDir = filepath.Join(homeDir, "Library", "Logs", constants.AppName)
 	default:
-		logDir = filepath.Join(homeDir, ".local", "share", "ssrok", "logs")
+		logDir = filepath.Join(homeDir, ".local", "share", constants.AppName, "logs")
 		if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
-			logDir = filepath.Join(xdgData, "ssrok", "logs")
+			logDir = filepath.Join(xdgData, constants.AppName, "logs")
 		}
 	}
 

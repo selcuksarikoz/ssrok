@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"ssrok/internal/constants"
 )
 
 // GetScheme determines the scheme (http/https) from the request
@@ -17,16 +19,9 @@ func GetScheme(r *http.Request) string {
 	return "http"
 }
 
-// standardWebPorts are ports that don't need to be shown in URLs
-// 80 = HTTP, 443 = HTTPS
-var standardWebPorts = map[string]bool{
-	"80":  true,
-	"443": true,
-}
-
-// IsDefaultPort returns true if the port is a standard web port (80, 443, 8080)
+// IsDefaultPort returns true if the port is a standard web port (80, 443)
 func IsDefaultPort(port string) bool {
-	return standardWebPorts[port]
+	return constants.StandardWebPorts[port]
 }
 
 // ConstructURL builds a URL string and removes standard web ports if present

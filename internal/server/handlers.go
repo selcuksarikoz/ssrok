@@ -27,7 +27,7 @@ func (s *Server) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, 1024)
+	r.Body = http.MaxBytesReader(w, r.Body, constants.MaxConfigBodySize)
 
 	var req types.ConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -338,7 +338,7 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 		s.TunnelMu.RUnlock()
 
 		if r.Method == http.MethodPost {
-			r.Body = http.MaxBytesReader(w, r.Body, 4096)
+			r.Body = http.MaxBytesReader(w, r.Body, constants.MaxAuthBodySize)
 
 			csrfToken := r.FormValue("csrf_token")
 			if !session.VerifyCSRFToken(csrfToken) {
