@@ -43,6 +43,8 @@ echo "Loading configuration from .env.prod..."
 if [ -f .env.prod ]; then
   # Load SSROK_SERVER from .env.prod
   SSROK_SERVER_URL=$(grep "^SSROK_SERVER=" .env.prod | cut -d '=' -f2)
+  # Remove trailing slash if present
+  SSROK_SERVER_URL=${SSROK_SERVER_URL%/}
 else
   echo "Error: .env.prod file not found!"
   exit 1

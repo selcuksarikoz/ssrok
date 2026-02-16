@@ -157,6 +157,7 @@ func main() {
 	port := targetPort // alias for compatibility
 
 	serverURL := utils.GetEnv("SSROK_SERVER", constants.DefaultServerURL)
+	serverURL = strings.TrimSuffix(serverURL, "/")
 
 	// Auto-detect HTTPS and skip TLS verify for localhost
 	useHTTPS := strings.HasPrefix(serverURL, "https://")
