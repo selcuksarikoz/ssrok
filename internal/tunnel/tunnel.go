@@ -185,7 +185,15 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	// Update stats
 	atomic.AddInt64(&t.TotalReqs, 1)
 	atomic.AddInt64(&t.ActiveConns, 1)
-	defer atomic.AddInt64(&t.ActiveConns, -1)
+	if t.dashboard != nil {
+		t.dashboard.IncActive()
+	}
+	defer func() {
+		atomic.AddInt64(&t.ActiveConns, -1)
+		if t.dashboard != nil {
+			t.dashboard.DecActive()
+		}
+	}()
 
 	startTime := time.Now()
 	logID := uuid.New().String()
@@ -270,7 +278,12 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 		errChan <- err
 	}()
 
+	// Wait for both directions to finish
 	<-errChan
+	localConn.Close() // Signal other direction to stop if it hasn't
+	stream.Close()
+	<-errChan
+
 	duration := time.Since(startTime)
 
 	// Parse Logs from captured buffers

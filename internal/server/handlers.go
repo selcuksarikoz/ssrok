@@ -452,7 +452,17 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path string) {
-	log.Printf("👤 User connected: %s -> %s %s", security.GetClientIP(r), r.Method, path)
+	shouldLog := true
+	for _, prefix := range constants.IgnoredLogPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			shouldLog = false
+			break
+		}
+	}
+
+	if shouldLog {
+		log.Printf("👤 User connected: %s -> %s %s", security.GetClientIP(r), r.Method, path)
+	}
 
 	if r.Body != nil {
 		r.Body = http.MaxBytesReader(w, r.Body, constants.MaxBodySize)

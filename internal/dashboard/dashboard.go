@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ssrok/internal/constants"
@@ -36,6 +37,7 @@ type Dashboard struct {
 	port      int
 	publicURL string
 	logger    *logger.Logger
+	active    int64 // active tunnel connections
 }
 
 func New(port int, publicURL string, log *logger.Logger) *Dashboard {
@@ -193,12 +195,25 @@ func (d *Dashboard) handleStats(w http.ResponseWriter, r *http.Request) {
 	totalRequests := len(d.logs)
 	d.mu.RUnlock()
 
+	d.clientsMu.RLock()
+	clientsCount := len(d.clients)
+	d.clientsMu.RUnlock()
+
 	stats := map[string]interface{}{
-		"total_requests":     totalRequests,
-		"active_connections": len(d.clients),
-		"public_url":         d.publicURL,
+		"total_requests":    totalRequests,
+		"active_requests":   atomic.LoadInt64(&d.active),
+		"dashboard_clients": clientsCount,
+		"public_url":        d.publicURL,
 	}
 	json.NewEncoder(w).Encode(stats)
+}
+
+func (d *Dashboard) IncActive() {
+	atomic.AddInt64(&d.active, 1)
+}
+
+func (d *Dashboard) DecActive() {
+	atomic.AddInt64(&d.active, -1)
 }
 
 func (d *Dashboard) handlePublicURL(w http.ResponseWriter, r *http.Request) {

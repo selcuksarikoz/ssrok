@@ -62,7 +62,17 @@ const (
 )
 
 var (
-	IgnoredLogPrefixes = []string{"/_next", "/webpack", "/vite", "/__webpack_hmr"}
+	IgnoredLogPrefixes = []string{
+		"/_next",
+		"/webpack",
+		"/vite",
+		"/__webpack_hmr",
+		"/@vite",
+		"/__vite_ping",
+		"/@fs",
+		"/browser-sync",
+		"/sockjs-node",
+	}
 )
 
 const (

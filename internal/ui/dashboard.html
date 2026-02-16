@@ -1,146 +1,238 @@
 {{define "content"}}
 <div class="h-screen flex flex-col overflow-hidden w-full">
-    <header class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
+  <header
+    class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between shrink-0"
+  >
+    <div class="flex items-center gap-3">
+      <div
+        class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center"
+      >
+        <svg
+          class="w-5 h-5 text-white"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 10V3L4 14h7v7l9-11h-7z"
+          />
+        </svg>
+      </div>
+      <h1 class="text-xl font-semibold text-white">
+        ssrok
+        <span class="text-gray-400 font-normal text-sm">Request Inspector</span>
+      </h1>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-gray-400">Public URL:</span>
+        <input
+          type="text"
+          id="publicUrl"
+          readonly
+          class="bg-gray-900 border border-gray-600 rounded-md px-3 py-1.5 text-sm text-brand-400 font-mono w-80 focus:outline-none focus:border-brand-500"
+        />
+        <button
+          onclick="copyUrl()"
+          class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1.5 rounded-md text-sm transition-colors"
+        >
+          Copy
+        </button>
+      </div>
+        <div class="flex items-center gap-6">
+          <div class="text-right">
+            <div class="text-xs text-gray-500 uppercase tracking-wider">
+              Total Requests
             </div>
-            <h1 class="text-xl font-semibold text-white">ssrok <span class="text-gray-400 font-normal text-sm">Request Inspector</span></h1>
+            <div class="text-2xl font-bold text-white" id="totalRequests">0</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-gray-500 uppercase tracking-wider">
+              Active
+            </div>
+            <div class="text-2xl font-bold text-white" id="activeConnections">
+              0
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-gray-500 uppercase tracking-wider">
+              Users
+            </div>
+            <div class="text-2xl font-bold text-white" id="dashboardClients">
+              0
+            </div>
+          </div>
+          <div id="connectionStatus" class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span class="text-sm text-gray-300">Connected</span>
+          </div>
         </div>
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2">
-                <span class="text-sm text-gray-400">Public URL:</span>
-                <input type="text" id="publicUrl" readonly
-                    class="bg-gray-900 border border-gray-600 rounded-md px-3 py-1.5 text-sm text-brand-400 font-mono w-80 focus:outline-none focus:border-brand-500">
-                <button onclick="copyUrl()"
-                    class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1.5 rounded-md text-sm transition-colors">
-                    Copy
-                </button>
-            </div>
-            <div class="flex items-center gap-6">
-                <div class="text-right">
-                    <div class="text-xs text-gray-500 uppercase tracking-wider">Total Requests</div>
-                    <div class="text-2xl font-bold text-white" id="totalRequests">0</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-xs text-gray-500 uppercase tracking-wider">Connections</div>
-                    <div class="text-2xl font-bold text-white" id="activeConnections">0</div>
-                </div>
-                <div id="connectionStatus" class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span class="text-sm text-gray-300">Connected</span>
-                </div>
-            </div>
+    </div>
+  </header>
+
+  <main class="flex-1 flex overflow-hidden">
+    <aside class="w-2/3 flex flex-col border-r border-gray-700">
+      <div
+        class="px-4 py-3 border-b border-gray-700 flex items-center justify-between bg-gray-800/50"
+      >
+        <h2 class="text-sm font-medium text-gray-300">Requests</h2>
+        <span class="text-xs text-gray-500" id="requestCount">0 requests</span>
+      </div>
+      <div class="flex-1 overflow-y-auto" id="logTable">
+        <div
+          class="flex flex-col items-center justify-center h-full text-gray-500"
+        >
+          <svg
+            class="w-12 h-12 mb-3 opacity-50"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+          <p class="text-sm">No requests yet...</p>
         </div>
-    </header>
+      </div>
+    </aside>
 
-    <main class="flex-1 flex overflow-hidden">
-        <aside class="w-2/3 flex flex-col border-r border-gray-700">
-            <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between bg-gray-800/50">
-                <h2 class="text-sm font-medium text-gray-300">Requests</h2>
-                <span class="text-xs text-gray-500" id="requestCount">0 requests</span>
-            </div>
-            <div class="flex-1 overflow-y-auto" id="logTable">
-                <div class="flex flex-col items-center justify-center h-full text-gray-500">
-                    <svg class="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                    <p class="text-sm">No requests yet...</p>
-                </div>
-            </div>
-        </aside>
-
-        <aside class="w-1/3 flex flex-col bg-gray-800/30 border-l border-gray-700/50">
-            <div class="flex border-b border-gray-700" id="detailTabs">
-                <button onclick="switchTab('request')"
-                    class="flex-1 px-4 py-3 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors tab-btn active border-b-2 border-brand-500 text-brand-400 bg-gray-800/50"
-                    data-tab="request">
-                    Request
-                </button>
-                <button onclick="switchTab('response')"
-                    class="flex-1 px-4 py-3 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors tab-btn"
-                    data-tab="response">
-                    Response
-                </button>
-            </div>
-            <div class="flex-1 overflow-y-auto p-4" id="detailContent">
-                <div class="flex flex-col items-center justify-center h-full text-gray-500">
-                    <svg class="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                    </svg>
-                    <p class="text-sm">Select a request to view details</p>
-                </div>
-            </div>
-        </aside>
-    </main>
+    <aside
+      class="w-1/3 flex flex-col bg-gray-800/30 border-l border-gray-700/50"
+    >
+      <div class="flex border-b border-gray-700" id="detailTabs">
+        <button
+          onclick="switchTab('request')"
+          class="flex-1 px-4 py-3 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors tab-btn active border-b-2 border-brand-500 text-brand-400 bg-gray-800/50"
+          data-tab="request"
+        >
+          Request
+        </button>
+        <button
+          onclick="switchTab('response')"
+          class="flex-1 px-4 py-3 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors tab-btn"
+          data-tab="response"
+        >
+          Response
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4" id="detailContent">
+        <div
+          class="flex flex-col items-center justify-center h-full text-gray-500"
+        >
+          <svg
+            class="w-12 h-12 mb-3 opacity-50"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+            />
+          </svg>
+          <p class="text-sm">Select a request to view details</p>
+        </div>
+      </div>
+    </aside>
+  </main>
 </div>
-{{end}}
-
-{{define "scripts"}}
+{{end}} {{define "scripts"}}
 <script>
-    let ws;
-    let logs = [];
-    let selectedLog = null;
-    let currentTab = 'request';
+  let ws;
+  let logs = [];
+  let selectedLog = null;
+  let currentTab = "request";
 
-    function connect() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(protocol + '//' + window.location.host + '/ws');
+  function connect() {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(protocol + "//" + window.location.host + "/ws");
 
-        ws.onopen = () => {
-            document.getElementById('connectionStatus').innerHTML =
-                '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span><span class="text-sm text-gray-300">Connected</span>';
-        };
+    ws.onopen = () => {
+      document.getElementById("connectionStatus").innerHTML =
+        '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span><span class="text-sm text-gray-300">Connected</span>';
+    };
 
-        ws.onmessage = (event) => {
-            const log = JSON.parse(event.data);
-            logs.push(log);
-            renderLogs();
-            updateStats();
-        };
+    ws.onmessage = (event) => {
+      const log = JSON.parse(event.data);
+      // Avoid duplicates on reconnect
+      if (!logs.find((l) => l.id === log.id)) {
+        logs.push(log);
+        renderLogs();
+        updateStats();
+      }
+    };
 
-        ws.onclose = () => {
-            document.getElementById('connectionStatus').innerHTML =
-                '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-sm text-gray-400">Disconnected</span>';
-            setTimeout(connect, 3000);
-        };
-    }
+    ws.onclose = () => {
+      document.getElementById("connectionStatus").innerHTML =
+        '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-sm text-gray-400">Disconnected</span>';
+      setTimeout(connect, 3000);
+    };
+  }
 
-    function renderLogs() {
-        const table = document.getElementById('logTable');
-        const countEl = document.getElementById('requestCount');
+  function renderLogs() {
+    const table = document.getElementById("logTable");
+    const countEl = document.getElementById("requestCount");
 
-        if (logs.length === 0) {
-            table.innerHTML = `
+    if (logs.length === 0) {
+      table.innerHTML = `
                 <div class="flex flex-col items-center justify-center h-full text-gray-500">
                     <svg class="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                     <p class="text-sm">No requests yet...</p>
                 </div>`;
-            return;
-        }
+      return;
+    }
 
-        countEl.textContent = `${logs.length} request${logs.length !== 1 ? 's' : ''}`;
+    countEl.textContent = `${logs.length} request${logs.length !== 1 ? "s" : ""}`;
 
-        let html = '';
-        logs.slice().reverse().forEach((log, idx) => {
-            const num = logs.length - idx;
-            const methodClass = log.method.toLowerCase();
-            const statusClass = log.status_code >= 200 && log.status_code < 300 ? 'bg-green-900 text-green-300' :
-                               log.status_code >= 400 ? 'bg-red-900 text-red-300' :
-                               log.status_code >= 300 ? 'bg-yellow-900 text-yellow-300' : 'bg-gray-700 text-gray-300';
-            const methodColor = methodClass === 'get' ? 'text-green-400' :
-                              methodClass === 'post' ? 'text-yellow-400' :
-                              methodClass === 'put' ? 'text-blue-400' :
-                              methodClass === 'delete' ? 'text-red-400' : 'text-gray-400';
-            const time = new Date(log.timestamp).toLocaleTimeString();
-            const selected = selectedLog && selectedLog.id === log.id ? 'bg-brand-900/30 border-l-2 border-brand-500' : 'hover:bg-gray-800 border-l-2 border-transparent';
+    let html = "";
+    logs
+      .slice()
+      .reverse()
+      .forEach((log, idx) => {
+        const num = logs.length - idx;
+        const methodClass = log.method.toLowerCase();
+        const statusClass =
+          log.status_code >= 200 && log.status_code < 300
+            ? "bg-green-900 text-green-300"
+            : log.status_code >= 400
+              ? "bg-red-900 text-red-300"
+              : log.status_code >= 300
+                ? "bg-yellow-900 text-yellow-300"
+                : "bg-gray-700 text-gray-300";
+        const methodColor =
+          methodClass === "get"
+            ? "text-green-400"
+            : methodClass === "post"
+              ? "text-yellow-400"
+              : methodClass === "put"
+                ? "text-blue-400"
+                : methodClass === "delete"
+                  ? "text-red-400"
+                  : "text-gray-400";
+        const time = new Date(log.timestamp).toLocaleTimeString();
+        const selected =
+          selectedLog && selectedLog.id === log.id
+            ? "bg-brand-900/30 border-l-2 border-brand-500"
+            : "hover:bg-gray-800 border-l-2 border-transparent";
 
-            html += `
+        html += `
             <div class="px-4 py-3 border-b border-gray-700/50 cursor-pointer transition-colors ${selected}" onclick="selectLog('${log.id}')">
                 <div class="flex items-center gap-4">
                     <span class="text-gray-500 text-xs w-6">${num}</span>
@@ -150,57 +242,59 @@
                     <span class="text-gray-500 text-xs w-20 text-right">${time}</span>
                 </div>
             </div>`;
-        });
-        table.innerHTML = html;
+      });
+    table.innerHTML = html;
+  }
+
+  function selectLog(id) {
+    if (!id) return;
+    selectedLog = logs.find((l) => l.id === id);
+    renderLogs();
+    renderDetail();
+  }
+
+  function formatBody(body, headers) {
+    if (!body) return "";
+
+    const contentType = getHeader(headers, "content-type") || "";
+    let isJson = contentType.includes("application/json");
+
+    // Heuristic check for JSON
+    if (
+      !isJson &&
+      (body.trim().startsWith("{") || body.trim().startsWith("["))
+    ) {
+      try {
+        JSON.parse(body);
+        isJson = true;
+      } catch (e) {}
     }
 
-    function selectLog(id) {
-        selectedLog = logs.find(l => l.id === id);
-        renderLogs();
-        renderDetail();
+    if (isJson) {
+      try {
+        const obj = JSON.parse(body);
+        return `<pre class="text-xs text-green-400 font-mono whitespace-pre-wrap break-all">${escapeHtml(JSON.stringify(obj, null, 2))}</pre>`;
+      } catch (e) {
+        // Fallback if parse fails
+      }
     }
 
-    function formatBody(body, headers) {
-        if (!body) return '';
+    return `<pre class="text-xs text-gray-300 font-mono whitespace-pre-wrap break-all">${escapeHtml(body)}</pre>`;
+  }
 
-        const contentType = getHeader(headers, 'content-type') || '';
-        let isJson = contentType.includes('application/json');
+  function getHeader(headers, key) {
+    if (!headers) return null;
+    const k = Object.keys(headers).find(
+      (h) => h.toLowerCase() === key.toLowerCase(),
+    );
+    if (!k) return null;
+    return headers[k][0]; // Assuming array
+  }
 
-        // Heuristic check for JSON
-        if (!isJson && (body.trim().startsWith('{') || body.trim().startsWith('['))) {
-            try {
-                JSON.parse(body);
-                isJson = true;
-            } catch (e) {}
-        }
-
-        if (isJson) {
-            try {
-                const obj = JSON.parse(body);
-                return `<pre class="text-xs text-green-400 font-mono whitespace-pre-wrap break-all">${escapeHtml(JSON.stringify(obj, null, 2))}</pre>`;
-            } catch (e) {
-                // Fallback if parse fails
-            }
-        }
-
-        // If it looks like binary (contains null bytes or weird chars), show as binary
-        // Simple check: looking for non-printable chars is hard in JS string without regex
-        // Let's assume if it's text, show it.
-
-        return `<pre class="text-xs text-gray-300 font-mono whitespace-pre-wrap break-all">${escapeHtml(body)}</pre>`;
-    }
-
-    function getHeader(headers, key) {
-        if (!headers) return null;
-        const k = Object.keys(headers).find(h => h.toLowerCase() === key.toLowerCase());
-        if (!k) return null;
-        return headers[k][0]; // Assuming array
-    }
-
-    function renderDetail() {
-        const content = document.getElementById('detailContent');
-        if (!selectedLog) {
-            content.innerHTML = `
+  function renderDetail() {
+    const content = document.getElementById("detailContent");
+    if (!selectedLog) {
+      content.innerHTML = `
                 <div class="flex flex-col items-center justify-center h-full text-gray-500">
                     <svg class="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -208,45 +302,59 @@
                     </svg>
                     <p class="text-sm">Select a request to view details</p>
                 </div>`;
-            return;
-        }
+      return;
+    }
 
-        if (currentTab === 'request') {
-            const headers = (selectedLog.request && selectedLog.request.headers) || {};
-            const queryParams = (selectedLog.request && selectedLog.request.query_params) || {};
-            const body = (selectedLog.request && selectedLog.request.body) || '';
+    if (currentTab === "request") {
+      const headers =
+        (selectedLog.request && selectedLog.request.headers) || {};
+      const queryParams =
+        (selectedLog.request && selectedLog.request.query_params) || {};
+      const body = (selectedLog.request && selectedLog.request.body) || "";
 
-            let headersHtml = Object.entries(headers).map(([k, v]) => `
+      let headersHtml = Object.entries(headers)
+        .map(
+          ([k, v]) => `
                 <div class="flex justify-between border-b border-gray-700/50 py-1 last:border-0">
                     <span class="text-brand-400 font-mono text-xs">${k}</span>
-                    <span class="text-gray-300 font-mono text-xs break-all text-right pl-4 select-all">${(v || []).join(', ')}</span>
-                </div>`).join('');
+                    <span class="text-gray-300 font-mono text-xs break-all text-right pl-4 select-all">${(v || []).join(", ")}</span>
+                </div>`,
+        )
+        .join("");
 
-            let paramsHtml = Object.entries(queryParams).map(([k, v]) => `
+      let paramsHtml = Object.entries(queryParams)
+        .map(
+          ([k, v]) => `
                 <div class="flex justify-between border-b border-gray-700/50 py-1 last:border-0">
                     <span class="text-brand-400 font-mono text-xs">${k}</span>
-                    <span class="text-gray-300 font-mono text-xs break-all text-right pl-4 select-all">${(v || []).join(', ')}</span>
-                </div>`).join('');
+                    <span class="text-gray-300 font-mono text-xs break-all text-right pl-4 select-all">${(v || []).join(", ")}</span>
+                </div>`,
+        )
+        .join("");
 
-            content.innerHTML = `
+      content.innerHTML = `
                 <div class="space-y-6">
                     <div>
                          <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">General</h4>
                          <div class="bg-gray-800 rounded-lg p-3 space-y-2 text-sm">
                             <div class="flex justify-between"><span class="text-gray-400">Method</span> <span class="text-white font-mono">${selectedLog.method}</span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Path</span> <span class="text-white font-mono break-all">${selectedLog.path}</span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Client IP</span> <span class="text-white font-mono">${selectedLog.client_ip || 'N/A'}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Client IP</span> <span class="text-white font-mono">${selectedLog.client_ip || "N/A"}</span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Time</span> <span class="text-white">${new Date(selectedLog.timestamp).toLocaleString()}</span></div>
                          </div>
                     </div>
 
-                    ${paramsHtml ? `
+                    ${
+                      paramsHtml
+                        ? `
                     <div>
                         <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Query Parameters</h4>
                         <div class="bg-gray-800 rounded-lg p-3 space-y-1">
                             ${paramsHtml}
                         </div>
-                    </div>` : ''}
+                    </div>`
+                        : ""
+                    }
 
                     <div>
                         <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Headers</h4>
@@ -255,27 +363,36 @@
                         </div>
                     </div>
 
-                    ${body ? `
+                    ${
+                      body
+                        ? `
                     <div>
                         <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Body</h4>
                         <div class="bg-gray-800 rounded-lg p-3 overflow-x-auto">
                             ${formatBody(body, headers)}
                         </div>
-                    </div>` : ''}
+                    </div>`
+                        : ""
+                    }
                 </div>`;
-        } else {
-            // Response Tab
-            const headers = (selectedLog.response && selectedLog.response.headers) || {};
-            const body = (selectedLog.response && selectedLog.response.body) || '';
-            const duration = (selectedLog.duration / 1000000).toFixed(2);
+    } else {
+      // Response Tab
+      const headers =
+        (selectedLog.response && selectedLog.response.headers) || {};
+      const body = (selectedLog.response && selectedLog.response.body) || "";
+      const duration = (selectedLog.duration / 1000000).toFixed(2);
 
-            let headersHtml = Object.entries(headers).map(([k, v]) => `
+      let headersHtml = Object.entries(headers)
+        .map(
+          ([k, v]) => `
                 <div class="flex justify-between border-b border-gray-700/50 py-1 last:border-0">
                     <span class="text-brand-400 font-mono text-xs">${k}</span>
-                    <span class="text-gray-300 font-mono text-xs break-all text-right pl-4 select-all">${(v || []).join(', ')}</span>
-                </div>`).join('');
+                    <span class="text-gray-300 font-mono text-xs break-all text-right pl-4 select-all">${(v || []).join(", ")}</span>
+                </div>`,
+        )
+        .join("");
 
-             content.innerHTML = `
+      content.innerHTML = `
                 <div class="space-y-6">
                     <div>
                          <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">General</h4>
@@ -292,81 +409,102 @@
                         </div>
                     </div>
 
-                    ${body ? `
+                    ${
+                      body
+                        ? `
                     <div>
                         <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Body</h4>
                          <div class="bg-gray-800 rounded-lg p-3 overflow-x-auto">
                             ${formatBody(body, headers)}
                         </div>
-                    </div>` : ''}
+                    </div>`
+                        : ""
+                    }
                 </div>`;
-        }
     }
+  }
 
-    function escapeHtml(text) {
-        if (!text) return '';
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+  function escapeHtml(text) {
+    if (!text) return "";
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getStatusColor(code) {
+    if (code >= 200 && code < 300) return "text-green-400";
+    if (code >= 400) return "text-red-400";
+    return "text-yellow-400";
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      if (btn.dataset.tab === tab) {
+        btn.classList.add(
+          "border-b-2",
+          "border-brand-500",
+          "text-brand-400",
+          "bg-gray-800/50",
+        );
+        btn.classList.remove("text-gray-400");
+      } else {
+        btn.classList.remove(
+          "border-b-2",
+          "border-brand-500",
+          "text-brand-400",
+          "bg-gray-800/50",
+        );
+        btn.classList.add("text-gray-400");
+      }
+    });
+    renderDetail();
+  }
+
+  function updateStats() {
+    document.getElementById("totalRequests").textContent = logs.length;
+  }
+
+  function copyUrl() {
+    const input = document.getElementById("publicUrl");
+    input.select();
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(input.value).then(() => {
+        // visual feedback could go here
+      });
+    } else {
+      document.execCommand("copy");
     }
+  }
 
-    function getStatusColor(code) {
-         if (code >= 200 && code < 300) return 'text-green-400';
-         if (code >= 400) return 'text-red-400';
-         return 'text-yellow-400';
-    }
+  function loadPublicUrl() {
+    fetch("/public-url")
+      .then((r) => r.json())
+      .then((data) => {
+        document.getElementById("publicUrl").value = data.public_url;
+      });
+  }
 
-    function switchTab(tab) {
-        currentTab = tab;
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            if (btn.dataset.tab === tab) {
-                btn.classList.add('border-b-2', 'border-brand-500', 'text-brand-400', 'bg-gray-800/50');
-                btn.classList.remove('text-gray-400');
-            } else {
-                btn.classList.remove('border-b-2', 'border-brand-500', 'text-brand-400', 'bg-gray-800/50');
-                btn.classList.add('text-gray-400');
-            }
-        });
-        renderDetail();
-    }
-
-    function updateStats() {
-        document.getElementById('totalRequests').textContent = logs.length;
-    }
-
-    function copyUrl() {
-        const input = document.getElementById('publicUrl');
-        input.select();
-
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(input.value).then(() => {
-                // visual feedback could go here
-            });
-        } else {
-            document.execCommand('copy');
-        }
-    }
-
-    function loadPublicUrl() {
-        fetch('/public-url')
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('publicUrl').value = data.public_url;
-            });
-    }
-
-    // Initialize
-    connect();
-    loadPublicUrl();
-    setInterval(() => {
-        fetch('/api/stats')
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('activeConnections').textContent = data.active_connections;
-            });
-    }, 5000);
+  // Initialize
+  connect();
+  loadPublicUrl();
+  setInterval(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        const active = data.active_requests !== undefined ? data.active_requests : "0";
+        const users = data.dashboard_clients !== undefined ? data.dashboard_clients : "0";
+        document.getElementById("activeConnections").textContent = active;
+        document.getElementById("dashboardClients").textContent = users;
+        document.getElementById("totalRequests").textContent = data.total_requests || "0";
+      })
+      .catch((err) => {
+        console.error("Failed to fetch stats:", err);
+      });
+  }, 2000);
 </script>
 {{end}}

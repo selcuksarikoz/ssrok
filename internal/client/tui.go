@@ -107,7 +107,7 @@ func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, e
 		ColorDim, ColorReset, utils.FormatBytes(bytesOut), ColorReset)
 	fmt.Printf("  %sReq:    %s%10d%s   %sActive: %s%8d%s\n",
 		ColorDim, ColorReset, totalReqs, ColorReset,
-		ColorDim, ColorReset, activeConns)
+		ColorDim, ColorReset, activeConns, ColorReset)
 	fmt.Println()
 
 	PrintField("magic url", magicURL, ColorCyan)
