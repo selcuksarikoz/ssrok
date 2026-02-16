@@ -18,6 +18,7 @@ type Session struct {
 	TokenHash    string
 	RateLimit    int
 	UseTLS       bool
+	E2EE         bool
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	Conn         *websocket.Conn
@@ -62,10 +63,6 @@ func (s *Session) VerifyToken(token string) bool {
 func (s *Session) VerifyPassword(password string) bool {
 	providedHash := HashSHA256(password)
 	return subtleConstantTimeCompare(providedHash, s.PasswordHash) == 1
-}
-
-func (s *Session) HasPassword() bool {
-	return s.PasswordHash != ""
 }
 
 type MemoryStore struct {

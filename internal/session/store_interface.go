@@ -10,6 +10,7 @@ type SessionData struct {
 	TokenHash    string
 	RateLimit    int
 	UseTLS       bool
+	E2EE         bool
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	TunnelActive bool

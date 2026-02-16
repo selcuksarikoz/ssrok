@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/yamux"
 
 	"ssrok/internal/constants"
+	"ssrok/internal/crypto"
 	"ssrok/internal/dashboard"
 	"ssrok/internal/logger"
 	"ssrok/internal/types"
@@ -44,6 +45,7 @@ type Tunnel struct {
 	localAddr   string
 	LogCallback func(string)
 	dashboard   *dashboard.Dashboard
+	E2EE        bool
 
 	// Stats
 	BytesIn     int64 // atomic
@@ -60,12 +62,13 @@ func (t *Tunnel) SetDashboard(d *dashboard.Dashboard) {
 	t.dashboard = d
 }
 
-func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool) *Tunnel {
+func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool, e2ee bool) *Tunnel {
 	return &Tunnel{
 		UUID:      uuid,
 		WSConn:    wsConn,
 		LocalPort: localPort,
 		UseTLS:    useTLS,
+		E2EE:      e2ee,
 		localAddr: fmt.Sprintf("localhost:%d", localPort),
 	}
 }
@@ -81,8 +84,22 @@ func yamuxConfig() *yamux.Config {
 
 func (t *Tunnel) HandleWebSocket() error {
 	wsWrapper := &wsConnWrapper{conn: t.WSConn, tunnel: t}
+	var tunnelConn net.Conn = wsWrapper
 
-	session, err := yamux.Server(wsWrapper, yamuxConfig())
+	if t.E2EE {
+		sharedSecret, err := crypto.Handshake(wsWrapper, true)
+		if err != nil {
+			return fmt.Errorf("E2EE handshake failed: %w", err)
+		}
+
+		secureConn, err := crypto.NewSecureConn(wsWrapper, sharedSecret)
+		if err != nil {
+			return fmt.Errorf("failed to create secure connection: %w", err)
+		}
+		tunnelConn = secureConn
+	}
+
+	session, err := yamux.Server(tunnelConn, yamuxConfig())
 	if err != nil {
 		return fmt.Errorf("failed to create yamux session: %w", err)
 	}
@@ -120,7 +137,6 @@ func (t *Tunnel) Process() error {
 	}
 }
 
-// Helper for limiting log buffer size
 type limitedBuffer struct {
 	buf     *bytes.Buffer
 	limit   int
@@ -174,7 +190,6 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	startTime := time.Now()
 	logID := uuid.New().String()
 
-	// Setup Request Logger (limit 1MB)
 	var requestLogBuf bytes.Buffer
 	requestLogger := &limitedBuffer{buf: &requestLogBuf, limit: 1024 * 1024}
 	loggedStream := io.TeeReader(stream, requestLogger)
@@ -209,7 +224,6 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	defer PutBuffer(buf1)
 	defer PutBuffer(buf2)
 
-	// Setup Response Logger (limit 1MB)
 	var responseLogBuf bytes.Buffer
 	responseLogger := &limitedBuffer{buf: &responseLogBuf, limit: 1024 * 1024}
 	loggedLocalConn := io.TeeReader(localConn, responseLogger)
@@ -217,7 +231,6 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	errChan := make(chan error, 2)
 
 	go func() {
-		// Use bufio NewReader on the logged stream to handle headers correctly
 		reader := bufio.NewReader(loggedStream)
 		var headerBuf bytes.Buffer
 
@@ -226,7 +239,6 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 		headerBuf.WriteString(line)
 
 		if err == nil {
-			// Read headers manually to ensure we send them to localConn
 			for {
 				line, err = reader.ReadString('\n')
 				headerBuf.WriteString(line)
@@ -289,8 +301,6 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 			reqBody = string(b)
 		}
 	} else {
-		// Fallback: Try to at least parse the Method/Path from buffer string if Reader failed
-		// (This covers cases where body was truncated but headers are there)
 		logStr := requestLogBuf.String()
 		if idx := strings.Index(logStr, "\n"); idx > 0 {
 			line := logStr[:idx]
@@ -311,8 +321,6 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 			respBody = string(b)
 		}
 	} else {
-		// Fallback for response status code if parsing failed
-		// Try to read first line
 		logStr := responseLogBuf.String()
 		if idx := strings.Index(logStr, "\n"); idx > 0 {
 			line := logStr[:idx]
@@ -478,7 +486,7 @@ func (w *wsConnWrapper) SetDeadline(t time.Time) error      { return nil }
 func (w *wsConnWrapper) SetReadDeadline(t time.Time) error  { return w.conn.SetReadDeadline(t) }
 func (w *wsConnWrapper) SetWriteDeadline(t time.Time) error { return w.conn.SetWriteDeadline(t) }
 
-func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVerify bool, useTLS bool) (*Tunnel, error) {
+func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVerify bool, useTLS bool, e2ee bool) (*Tunnel, error) {
 	_, portStr, _ := net.SplitHostPort(targetAddr)
 	localPort, _ := strconv.Atoi(portStr)
 
@@ -517,6 +525,7 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 		WSConn:    conn,
 		LocalPort: localPort,
 		UseTLS:    useTLS,
+		E2EE:      e2ee,
 		log:       log,
 		localAddr: targetAddr,
 	}
@@ -529,7 +538,28 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 		tunnel:    tunnel,
 	}
 
-	session, err := yamux.Client(wsWrapper, yamuxConfig())
+	var tunnelConn net.Conn = wsWrapper
+
+	if e2ee {
+		log.LogEvent("E2EE enabled, performing handshake...", localPort)
+		sharedSecret, err := crypto.Handshake(wsWrapper, false)
+		if err != nil {
+			conn.Close()
+			log.Close()
+			return nil, fmt.Errorf("E2EE handshake failed: %w", err)
+		}
+
+		secureConn, err := crypto.NewSecureConn(wsWrapper, sharedSecret)
+		if err != nil {
+			conn.Close()
+			log.Close()
+			return nil, fmt.Errorf("failed to create secure connection: %w", err)
+		}
+		tunnelConn = secureConn
+		log.LogEvent("E2EE handshake successful", localPort)
+	}
+
+	session, err := yamux.Client(tunnelConn, yamuxConfig())
 	if err != nil {
 		log.LogError("client", fmt.Errorf("failed to create yamux client: %w", err), remoteAddr, localPort)
 		conn.Close()
@@ -541,7 +571,6 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 
 	log.LogEvent("Yamux session established", localPort)
 
-	// Set default callback
 	tunnel.LogCallback = func(msg string) {
 		fmt.Printf("  %s%s%s\n", constants.ColorCyan, msg, constants.ColorReset)
 	}
