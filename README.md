@@ -48,6 +48,8 @@ That's it. You'll get:
 
 ### Quick Install (Recommended)
 
+**macOS:**
+
 ```bash
 curl -sL https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-darwin-arm64 -o /usr/local/bin/ssrok
 chmod +x /usr/local/bin/ssrok
@@ -59,6 +61,22 @@ chmod +x /usr/local/bin/ssrok
 brew tap selcuksarikoz/ssrok https://github.com/selcuksarikoz/ssrok
 brew install ssrok
 ```
+
+**Linux:**
+
+```bash
+sudo curl -sL https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-linux-amd64 -o /usr/local/bin/ssrok
+sudo chmod +x /usr/local/bin/ssrok
+```
+
+**Windows:**
+
+```powershell
+# Run as Administrator in PowerShell
+Invoke-WebRequest -Uri "https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-windows-amd64.exe" -OutFile "C:\Windows\ssrok.exe"
+```
+
+Or download manually from the [releases page](https://github.com/selcuksarikoz/ssrok/releases).
 
 ### Build from Source
 
@@ -80,19 +98,34 @@ make build-server   # output: ./ssrok-server
 
 After building, you can install the binaries to your system path to use them globally.
 
-**Client:**
+**macOS / Linux:**
 
 ```bash
 sudo mv ssrok /usr/local/bin/
 ```
 
-**Server:**
+**Windows:**
 
-```bash
-sudo mv ssrok-server /usr/local/bin/
+Move the binary to a folder in your PATH, for example:
+
+```powershell
+# Option 1: System-wide (requires Administrator)
+Move-Item ssrok.exe C:\Windows\System32\ssrok.exe
+
+# Option 2: User PATH (recommended)
+# Create a folder (e.g., C:\Users\YourUser\bin) and add it to your PATH:
+# Then move the file there
+Move-Item ssrok.exe C:\Users\YourUser\bin\ssrok.exe
 ```
 
-Alternatively, you can use the make command to install both:
+To add a folder to your PATH on Windows:
+
+```powershell
+# Open PowerShell and run:
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Users\YourUser\bin", "User")
+```
+
+Alternatively, you can use the make command to install both (macOS / Linux only):
 
 ```bash
 sudo make install
@@ -138,7 +171,7 @@ When you start a tunnel, a local dashboard is automatically available at `http:/
 
 ```
    GET  /api/users        200  12ms
-   POST /api/login        401  45ms  
+   POST /api/login        401  45ms
    GET  /static/app.js   200  8ms
 ```
 

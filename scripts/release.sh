@@ -66,10 +66,20 @@ LDFLAGS="-X ssrok/internal/constants.Version=$NEW_VERSION -X ssrok/internal/cons
 GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/ssrok-darwin-arm64 ./cmd/client
 GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/ssrok-darwin-amd64 ./cmd/client
 
+echo "Building Windows binaries..."
+GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/ssrok-windows-amd64.exe ./cmd/client
+
+echo "Building Linux binaries..."
+GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/ssrok-linux-amd64 ./cmd/client
+GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/ssrok-linux-arm64 ./cmd/client
+
 echo "Calculating SHA256 checksums..."
 
-SHA256_ARM64=$(shasum -a 256 dist/ssrok-darwin-arm64 | awk '{print $1}')
-SHA256_AMD64=$(shasum -a 256 dist/ssrok-darwin-amd64 | awk '{print $1}')
+SHA256_DARWIN_ARM64=$(shasum -a 256 dist/ssrok-darwin-arm64 | awk '{print $1}')
+SHA256_DARWIN_AMD64=$(shasum -a 256 dist/ssrok-darwin-amd64 | awk '{print $1}')
+SHA256_WINDOWS_AMD64=$(shasum -a 256 dist/ssrok-windows-amd64.exe | awk '{print $1}')
+SHA256_LINUX_AMD64=$(shasum -a 256 dist/ssrok-linux-amd64 | awk '{print $1}')
+SHA256_LINUX_ARM64=$(shasum -a 256 dist/ssrok-linux-arm64 | awk '{print $1}')
 
 echo "Updating Homebrew formula..."
 
@@ -79,8 +89,8 @@ sed -i '' 's|github.com/ssrok/ssrok|github.com/selcuksarikoz/ssrok|g' Formula/ss
 sed -i '' 's|download/v[0-9.]*/|download/v'"$NEW_VERSION"'/|g' Formula/ssrok.rb
 
 # Update SHA256 checksums - macOS arm64 and amd64
-sed -i '' '/darwin-arm64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_ARM64"'"/' Formula/ssrok.rb
-sed -i '' '/darwin-amd64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_AMD64"'"/' Formula/ssrok.rb
+sed -i '' '/darwin-arm64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_DARWIN_ARM64"'"/' Formula/ssrok.rb
+sed -i '' '/darwin-amd64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_DARWIN_AMD64"'"/' Formula/ssrok.rb
 
 echo "Creating GitHub release..."
 
@@ -105,13 +115,18 @@ RELEASE_NOTES="## What's New
 
 - Version $NEW_VERSION released
 - macOS ARM64 & AMD64 binaries
+- Windows AMD64 binary
+- Linux ARM64 & AMD64 binaries
 - Homebrew formula updated"
 
 gh release create "v$NEW_VERSION" \
   --title "v$NEW_VERSION" \
   --notes "$RELEASE_NOTES" \
   dist/ssrok-darwin-arm64 \
-  dist/ssrok-darwin-amd64
+  dist/ssrok-darwin-amd64 \
+  dist/ssrok-windows-amd64.exe \
+  dist/ssrok-linux-amd64 \
+  dist/ssrok-linux-arm64
 
 echo ""
 echo "Pushing Homebrew formula changes..."
