@@ -39,12 +39,30 @@ echo "Bumping version: $CURRENT_VERSION → $NEW_VERSION"
 sed -i '' "s/^VERSION :=.*/VERSION := $NEW_VERSION/" Makefile
 sed -i '' "s/Version = \".*\"/Version = \"$NEW_VERSION\"/" internal/constants/constants.go
 
+echo "Loading configuration from .env.prod..."
+if [ -f .env.prod ]; then
+  # Load SSROK_SERVER from .env.prod
+  SSROK_SERVER_URL=$(grep "^SSROK_SERVER=" .env.prod | cut -d '=' -f2)
+else
+  echo "Error: .env.prod file not found!"
+  exit 1
+fi
+
+if [ -z "$SSROK_SERVER_URL" ]; then
+  echo "Error: SSROK_SERVER not found in .env.prod"
+  exit 1
+fi
+
+echo "Using Server URL: $SSROK_SERVER_URL"
+
 echo "Building macOS binaries..."
 
 mkdir -p dist
 
-GOOS=darwin GOARCH=arm64 go build -ldflags "-X ssrok/internal/constants.Version=$NEW_VERSION -s -w" -o dist/ssrok-darwin-arm64 ./cmd/client
-GOOS=darwin GOARCH=amd64 go build -ldflags "-X ssrok/internal/constants.Version=$NEW_VERSION -s -w" -o dist/ssrok-darwin-amd64 ./cmd/client
+LDFLAGS="-X ssrok/internal/constants.Version=$NEW_VERSION -X ssrok/internal/constants.DefaultServerURL=$SSROK_SERVER_URL -s -w"
+
+GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/ssrok-darwin-arm64 ./cmd/client
+GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/ssrok-darwin-amd64 ./cmd/client
 
 echo "Calculating SHA256 checksums..."
 
