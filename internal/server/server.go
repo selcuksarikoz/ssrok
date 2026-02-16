@@ -113,8 +113,6 @@ func (s *Server) Run() {
 	server := &http.Server{
 		Addr:              ":" + s.Port,
 		Handler:           handler,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 		MaxHeaderBytes:    1 << 20,

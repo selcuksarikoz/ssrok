@@ -148,11 +148,19 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("🔌 WebSocket: Upgrading connection for tunnel: %s", tunnelUUID)
-	conn, err := websocket.Upgrade(w, r, nil, constants.WSBufferSize, constants.WSBufferSize)
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  constants.WSBufferSize,
+		WriteBufferSize: constants.WSBufferSize,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("❌ WebSocket upgrade error: %v", err)
 		return
 	}
+	conn.SetReadLimit(int64(constants.MaxWSMessageSize))
 
 	sess.Conn = conn
 	sess.TunnelActive = true

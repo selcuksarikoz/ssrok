@@ -428,6 +428,9 @@ type wsConnWrapper struct {
 }
 
 func (w *wsConnWrapper) Read(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 	if w.reader == nil {
 		_, w.reader, err = w.conn.NextReader()
 		if err != nil {
@@ -501,7 +504,7 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 		ReadBufferSize:    constants.WSBufferSize,
 		WriteBufferSize:   constants.WSBufferSize,
 		EnableCompression: false,
-		HandshakeTimeout:  30 * time.Second,
+		HandshakeTimeout:  constants.WSHandshakeTimeout,
 	}
 
 	if skipTLSVerify {
@@ -509,13 +512,14 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 		dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	log.LogEvent(fmt.Sprintf("Dialing WebSocket..."), localPort)
+	log.LogEvent("Dialing WebSocket...", localPort)
 	conn, resp, err := dialer.Dial(wsURL, nil)
 	if err != nil {
 		log.LogError("client->server", fmt.Errorf("failed to connect to server: %w", err), "", localPort)
 		log.Close()
 		return nil, fmt.Errorf("failed to connect to server: %w (resp: %+v)", err, resp)
 	}
+	conn.SetReadLimit(int64(constants.MaxWSMessageSize))
 
 	remoteAddr := conn.RemoteAddr().String()
 	log.LogEvent(fmt.Sprintf("WebSocket connected to %s", remoteAddr), localPort)

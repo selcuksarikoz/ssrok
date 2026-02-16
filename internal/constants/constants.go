@@ -19,15 +19,17 @@ var (
 )
 
 const (
-	MinPort         = 1
-	MaxPort         = 65535
-	BufferSize      = 131072 // 128KB
-	WSBufferSize    = 131072 // 128KB
-	CopyBufferSize  = 524288 // 512KB
-	DialTimeout     = 5 * time.Second
-	CleanupInterval = 30 * time.Second
-	StreamTypeProxy = 0x00
-	StreamTypeLog   = 0x01
+	MinPort            = 1
+	MaxPort            = 65535
+	BufferSize         = 131072   // 128KB
+	WSBufferSize       = 131072   // 128KB
+	MaxWSMessageSize   = 16777216 // 16MB
+	WSHandshakeTimeout = 30 * time.Second
+	CopyBufferSize     = 524288 // 512KB
+	DialTimeout        = 5 * time.Second
+	CleanupInterval    = 30 * time.Second
+	StreamTypeProxy    = 0x00
+	StreamTypeLog      = 0x01
 )
 
 const (
