@@ -92,6 +92,32 @@ sed -i '' 's|download/v[0-9.]*/|download/v'"$NEW_VERSION"'/|g' Formula/ssrok.rb
 sed -i '' '/darwin-arm64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_DARWIN_ARM64"'"/' Formula/ssrok.rb
 sed -i '' '/darwin-amd64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_DARWIN_AMD64"'"/' Formula/ssrok.rb
 
+echo "Updating version.json..."
+
+RELEASE_DATE=$(date +%Y-%m-%d)
+
+cat > version.json << EOF
+{
+  "version": "$NEW_VERSION",
+  "release_date": "$RELEASE_DATE",
+  "downloads": {
+    "darwin": {
+      "arm64": "https://github.com/selcuksarikoz/ssrok/releases/download/v$NEW_VERSION/ssrok-darwin-arm64",
+      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v$NEW_VERSION/ssrok-darwin-amd64"
+    },
+    "linux": {
+      "arm64": "https://github.com/selcuksarikoz/ssrok/releases/download/v$NEW_VERSION/ssrok-linux-arm64",
+      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v$NEW_VERSION/ssrok-linux-amd64"
+    },
+    "windows": {
+      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v$NEW_VERSION/ssrok-windows-amd64.exe"
+    }
+  },
+  "install_brew": "brew install ssrok",
+  "install_linux": "curl -fsSL https://github.com/selcuksarikoz/ssrok/releases/download/v$NEW_VERSION/ssrok-linux-amd64 -o ssrok && chmod +x ssrok"
+}
+EOF
+
 echo "Creating GitHub release..."
 
 if [ -f .env ]; then
@@ -129,15 +155,14 @@ gh release create "v$NEW_VERSION" \
   dist/ssrok-linux-arm64
 
 echo ""
-echo "Pushing Homebrew formula changes..."
+echo "Committing changes (manual push required)..."
 
-echo "Pushing changes..."
-
-git add Makefile internal/constants/constants.go Formula/ssrok.rb
+git add Makefile internal/constants/constants.go Formula/ssrok.rb version.json
 git commit -m "chore: release v$NEW_VERSION"
-git push origin HEAD
+# git push origin HEAD
 
 echo ""
 echo "✅ Release v$NEW_VERSION complete!"
 echo "   Binary: https://github.com/$GITHUB_REPO/releases/tag/v$NEW_VERSION"
 echo "   Brew:   brew upgrade ssrok"
+echo "   Commit: Run 'git push origin HEAD' when ready"

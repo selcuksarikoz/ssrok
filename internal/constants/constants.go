@@ -28,6 +28,9 @@ var (
 
 	// Version can be overwritten at build time using -ldflags
 	Version = "0.1.9"
+
+	// VersionCheckURL is the URL to check for updates
+	VersionCheckURL = "https://raw.githubusercontent.com/selcuksarikoz/ssrok/main/version.json"
 )
 
 const (
