@@ -1,7 +1,9 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -50,7 +52,7 @@ func PrintSep() {
 }
 
 func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath string) {
-	fmt.Print("\033[?25l")
+	fmt.Print("\033?25l")
 	fmt.Print("\033[2J")
 
 	logChan := make(chan string, 100)
@@ -66,6 +68,30 @@ func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, ex
 	ticker := time.NewTicker(200 * time.Millisecond)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	dashStatsChan := make(chan int64, 1)
+	go func() {
+		for {
+			select {
+			case <-sigChan:
+				return
+			case <-time.After(2 * time.Second):
+				resp, err := http.Get(fmt.Sprintf("http://%s/api/stats", dashboardURL))
+				if err == nil {
+					var stats map[string]interface{}
+					if json.NewDecoder(resp.Body).Decode(&stats) == nil {
+						if v, ok := stats["active_requests"].(float64); ok {
+							select {
+							case dashStatsChan <- int64(v):
+							default:
+							}
+						}
+					}
+					resp.Body.Close()
+				}
+			}
+		}
+	}()
 
 	defer func() {
 		ticker.Stop()
@@ -83,15 +109,17 @@ func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, ex
 			if len(logBuffer) > 15 {
 				logBuffer = logBuffer[1:]
 			}
+		case activeDash := <-dashStatsChan:
+			RenderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer, activeDash)
 		case <-ticker.C:
-			RenderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer)
+			RenderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer, 0)
 		case <-sigChan:
 			return
 		}
 	}
 }
 
-func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath string, logs []string) {
+func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath string, logs []string, activeFromDash int64) {
 	fmt.Print("\033[H")
 
 	fmt.Printf("  %s%sssrok%s %sv%s%s\n", constants.ColorBold, constants.ColorCyan, constants.ColorReset, constants.ColorBold, constants.Version, constants.ColorReset)
@@ -102,6 +130,9 @@ func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, e
 	bytesOut := atomic.LoadInt64(&t.BytesOut)
 	totalReqs := atomic.LoadInt64(&t.TotalReqs)
 	activeConns := atomic.LoadInt64(&t.ActiveConns)
+	if activeFromDash > activeConns {
+		activeConns = activeFromDash
+	}
 
 	fmt.Printf("  %sRecved: %s%10s%s   %sSent: %s%10s%s\n",
 		ColorDim, ColorReset, utils.FormatBytes(bytesIn), ColorReset,

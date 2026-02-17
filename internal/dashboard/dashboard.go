@@ -191,6 +191,7 @@ func (d *Dashboard) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 func (d *Dashboard) handleStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
 	d.mu.RLock()
 	totalRequests := len(d.logs)
 	d.mu.RUnlock()
@@ -199,9 +200,11 @@ func (d *Dashboard) handleStats(w http.ResponseWriter, r *http.Request) {
 	clientsCount := len(d.clients)
 	d.clientsMu.RUnlock()
 
+	activeVal := atomic.LoadInt64(&d.active)
+
 	stats := map[string]interface{}{
 		"total_requests":    totalRequests,
-		"active_requests":   atomic.LoadInt64(&d.active),
+		"active_requests":   activeVal,
 		"dashboard_clients": clientsCount,
 		"public_url":        d.publicURL,
 	}
