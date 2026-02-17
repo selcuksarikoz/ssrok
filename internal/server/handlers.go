@@ -469,16 +469,6 @@ func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.R
 		bodyBytes, _ = io.ReadAll(r.Body)
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-		if security.DetectCommandInjection(
-			path,
-			r.URL.RawQuery,
-			string(bodyBytes),
-			r.Header.Get("Content-Type"),
-			r.Header.Get("Authorization"),
-		) {
-			t.SendLog(utils.FormatLog("⚠️", "SECURITY", 0, "Potential command injection detected"))
-			log.Printf("⚠️  Security: Command injection attempt from %s - %s %s", security.GetClientIP(r), r.Method, path)
-		}
 	}
 
 	stream, err := t.OpenProxyStream()

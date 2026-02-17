@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -64,6 +65,7 @@ func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, ex
 	}
 
 	logBuffer := make([]string, 0, 15)
+	uiMutex := &sync.Mutex{}
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	sigChan := make(chan os.Signal, 1)
@@ -110,9 +112,13 @@ func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, ex
 				logBuffer = logBuffer[1:]
 			}
 		case activeDash := <-dashStatsChan:
+			uiMutex.Lock()
 			RenderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer, activeDash)
+			uiMutex.Unlock()
 		case <-ticker.C:
+			uiMutex.Lock()
 			RenderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer, 0)
+			uiMutex.Unlock()
 		case <-sigChan:
 			return
 		}
