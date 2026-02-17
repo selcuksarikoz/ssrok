@@ -73,3 +73,50 @@ func MaxBodySize(maxSize int64) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+var (
+	commandInjectionPatterns = []string{
+		`;`,
+		`&&`,
+		`||`,
+		`\|`,
+		`\`,
+		`>`,
+		`<`,
+		`\$_`,
+		`\$\(`,
+		`\` + "`",
+		`cmd=`,
+		`exec`,
+		`system`,
+		`passthru`,
+		`shell_exec`,
+		`popen`,
+		`proc_open`,
+		`eval\(`,
+		`base64_decode`,
+		`assert\(`,
+		`preg_replace.*\/e`,
+		`create_function`,
+		`call_user_func`,
+		`../`,
+		`..\\`,
+		`%2e%2e`,
+		`rm -rf`,
+		`wget`,
+		`curl.*\|`,
+		`nc -`,
+		`/bin/sh`,
+		`/bin/bash`,
+	}
+	commandInjectionRegex = regexp.MustCompile(`(?i)(` + strings.Join(commandInjectionPatterns, `|`) + `)`)
+)
+
+func DetectCommandInjection(values ...string) bool {
+	for _, v := range values {
+		if commandInjectionRegex.MatchString(v) {
+			return true
+		}
+	}
+	return false
+}

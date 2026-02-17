@@ -29,6 +29,7 @@ func PrintBanner() {
 	fmt.Println()
 	fmt.Printf("  %s%sssrok%s %sv%s%s\n", constants.ColorBold, constants.ColorCyan, constants.ColorReset, constants.ColorBold, constants.Version, constants.ColorReset)
 	fmt.Printf("  %sSecure Ephemeral Reverse Proxy%s\n", constants.ColorDim, constants.ColorReset)
+	fmt.Printf("  %s⚠️  This is a proxy - cannot verify request source. Handle with caution.%s\n", ColorYellow, ColorReset)
 	fmt.Println()
 }
 

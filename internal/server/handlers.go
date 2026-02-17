@@ -463,8 +463,22 @@ func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.R
 		log.Printf("👤 User connected: %s -> %s %s", security.GetClientIP(r), r.Method, path)
 	}
 
+	var bodyBytes []byte
 	if r.Body != nil {
 		r.Body = http.MaxBytesReader(w, r.Body, constants.MaxBodySize)
+		bodyBytes, _ = io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+		if security.DetectCommandInjection(
+			path,
+			r.URL.RawQuery,
+			string(bodyBytes),
+			r.Header.Get("Content-Type"),
+			r.Header.Get("Authorization"),
+		) {
+			t.SendLog("⚠️  WARNING: Potential command injection detected in request")
+			log.Printf("⚠️  Security: Command injection attempt from %s - %s %s", security.GetClientIP(r), r.Method, path)
+		}
 	}
 
 	stream, err := t.OpenProxyStream()
