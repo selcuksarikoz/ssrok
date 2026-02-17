@@ -155,7 +155,7 @@ func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, e
 	fmt.Printf("  %s%s%s\n", ColorDim, strings.Repeat("─", 50), ColorReset)
 
 	for _, log := range logs {
-		fmt.Printf("\033[K%s\n", log)
+		fmt.Printf("  %s%s\n", ColorDim, log)
 	}
 
 	fmt.Print("\033[J")

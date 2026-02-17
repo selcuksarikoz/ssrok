@@ -476,7 +476,7 @@ func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.R
 			r.Header.Get("Content-Type"),
 			r.Header.Get("Authorization"),
 		) {
-			t.SendLog("⚠️  WARNING: Potential command injection detected in request")
+			t.SendLog(utils.FormatLog("⚠️", "SECURITY", 0, "Potential command injection detected"))
 			log.Printf("⚠️  Security: Command injection attempt from %s - %s %s", security.GetClientIP(r), r.Method, path)
 		}
 	}
