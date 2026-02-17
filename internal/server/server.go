@@ -12,6 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
 	"ssrok/internal/constants"
 	"ssrok/internal/security"
 	"ssrok/internal/session"
@@ -110,9 +113,16 @@ func (s *Server) Run() {
 	}
 	s.UseTLS = useTLS
 
+	var h2Handler http.Handler
+	if useTLS {
+		h2Handler = handler
+	} else {
+		h2Handler = h2c.NewHandler(handler, &http2.Server{})
+	}
+
 	server := &http.Server{
 		Addr:              ":" + s.Port,
-		Handler:           handler,
+		Handler:           h2Handler,
 		IdleTimeout:       120 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 		MaxHeaderBytes:    1 << 20,
@@ -129,7 +139,7 @@ func (s *Server) Run() {
 			}
 		}()
 	} else {
-		log.Printf("🌐 HTTP mode")
+		log.Printf("🌐 HTTP mode (HTTP/2 enabled)")
 		go func() {
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Fatalf("HTTP server error: %v", err)
