@@ -12,6 +12,7 @@ Expose your local development server to the internet with a secure, time-limited
 ## Why ssrok?
 
 - **Instant** — Get a public URL in seconds, not minutes
+- **End-to-End Encrypted** — Server cannot see your traffic (ChaCha20-Poly1305)
 - **Secure** — Token authentication + optional password protection
 - **Ephemeral** — URLs auto-expire (default: 1 hour)
 - **Fast** — 128KB buffers, yamux multiplexing, zero-copy transfers
@@ -151,7 +152,8 @@ Make sure to configure the Environment Variables (see below) to match your domai
 | Feature              | Description                       |
 | -------------------- | --------------------------------- |
 | ⚡ **Fast**          | 128KB buffers, yamux multiplexing |
-| 🔒 **Secure**        | Token auth, optional password     |
+| 🔒 **E2E Encryption** | ChaCha20-Poly1305, server cannot see traffic |
+| 🔐 **Secure**        | Token auth, optional password     |
 | 🎫 **Magic Links**   | URLs with embedded tokens         |
 | ⏱️ **Ephemeral**     | Auto-expire after 1 hour          |
 | 🚦 **Rate Limiting** | Per-IP, per-session throttling    |
@@ -177,7 +179,22 @@ When you start a tunnel, a local dashboard is automatically available at `http:/
 
 The dashboard helps you debug API responses, inspect webhook payloads, and monitor traffic in real-time.
 
+> **Note:** The dashboard runs locally on your machine and is not accessible from the internet. It shows requests as they pass through your local client before encryption.
+
 ## Security & Limitations
+
+### End-to-End Encryption
+
+ssrok uses **ChaCha20-Poly1305** authenticated encryption with **X25519** key exchange. This means:
+
+- **Server cannot see your traffic** — All data between your local server and visitors is encrypted on your client machine before being sent through the server
+- **Forward secrecy** — New encryption keys are generated for each tunnel session
+- **Tamper proof** — Any modification to encrypted data is detected and rejected
+
+```
+Visitor → [HTTPS] → ssrok Server → [E2E Encrypted] → Your Local Server
+                                    ↑ Server cannot decrypt this
+```
 
 ### Security Features
 
@@ -201,13 +218,18 @@ To ensure the stability and security of the shared tunnel infrastructure, the fo
 ## Architecture
 
 ```
-┌─────────────┐     WebSocket/yamux     ┌─────────────┐      HTTP       ┌─────────────┐
+┌─────────────┐     WebSocket (TLS)      ┌─────────────┐      HTTPS      ┌─────────────┐
 │   Client    │ ◄─────────────────────► │   Server    │ ◄────────────► │  Visitor    │
-│ (ssrok CLI) │    Token Required       │  (:80)     │   Token/Pass   │ (Browser)   │
+│ (ssrok CLI) │    E2E Encrypted        │  (relay)    │   Token/Pass   │ (Browser)   │
+│  (local)    │   (ChaCha20-Poly1305)   │             │                │             │
 └──────┬──────┘                         └─────────────┘                └─────────────┘
        │
        └──── localhost:3000
 ```
+
+- **Client** runs on your machine, encrypts all traffic before sending
+- **Server** acts as a relay, only sees encrypted data
+- **Visitor** connects via HTTPS, their requests are decrypted by your client
 
 ## Environment Variables
 
