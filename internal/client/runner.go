@@ -57,7 +57,14 @@ func Start(targetHost string, targetPort int, useTLS bool) {
 
 	go func() {
 		if err := t.Process(); err != nil {
-			// Silent exit on connection close
+			errStr := err.Error()
+			if strings.Contains(errStr, "server closed") {
+				fmt.Println()
+				PrintHint(ColorYellow + "Server closed the connection" + ColorReset)
+			} else {
+				fmt.Println()
+				fmt.Printf("   %sError: %s%s\n", ColorRed, errStr, ColorReset)
+			}
 			os.Exit(1)
 		}
 	}()

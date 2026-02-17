@@ -42,7 +42,13 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 	if err != nil {
 		log.LogError("client->server", fmt.Errorf("failed to connect to server: %w", err), "", localPort)
 		log.Close()
-		return nil, fmt.Errorf("failed to connect to server: %w (resp: %+v)", err, resp)
+		errMsg := "failed to connect to server"
+		if resp != nil && resp.StatusCode == 404 {
+			errMsg = "server not found (is the server running?)"
+		} else if resp != nil {
+			errMsg = fmt.Sprintf("server returned %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("%s", errMsg)
 	}
 	conn.SetReadLimit(int64(constants.MaxWSMessageSize))
 

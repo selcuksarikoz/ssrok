@@ -305,6 +305,10 @@ func (t *Tunnel) Process() error {
 			if t.isClosed {
 				return nil
 			}
+			errStr := err.Error()
+			if strings.Contains(errStr, "websocket: close") || strings.Contains(errStr, "abnormal closure") {
+				return fmt.Errorf("server closed the connection")
+			}
 			return fmt.Errorf("failed to accept stream: %w", err)
 		}
 

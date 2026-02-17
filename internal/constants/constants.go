@@ -81,7 +81,7 @@ const (
 const (
 	EndpointRoot      = "/"
 	EndpointRegister  = "/register"
-	EndpointWebSocket = "/ws"
+	EndpointWebSocket = "/ws/"
 	CookieUUIDContext = "uuid"
 )
 
