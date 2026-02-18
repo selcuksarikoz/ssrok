@@ -1,19 +1,19 @@
 {
-  "version": "0.1.10",
-  "release_date": "2026-02-17",
+  "version": "0.1.12",
+  "release_date": "2026-02-18",
   "downloads": {
     "darwin": {
-      "arm64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.10/ssrok-darwin-arm64",
-      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.10/ssrok-darwin-amd64"
+      "arm64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.12/ssrok-darwin-arm64",
+      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.12/ssrok-darwin-amd64"
     },
     "linux": {
-      "arm64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.10/ssrok-linux-arm64",
-      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.10/ssrok-linux-amd64"
+      "arm64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.12/ssrok-linux-arm64",
+      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.12/ssrok-linux-amd64"
     },
     "windows": {
-      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.10/ssrok-windows-amd64.exe"
+      "amd64": "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.12/ssrok-windows-amd64.exe"
     }
   },
   "install_brew": "brew install ssrok",
-  "install_linux": "curl -fsSL https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.10/ssrok-linux-amd64 -o ssrok && chmod +x ssrok"
+  "install_linux": "curl -fsSL https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.12/ssrok-linux-amd64 -o ssrok && chmod +x ssrok"
 }
