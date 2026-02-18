@@ -113,7 +113,9 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if s.AuditLogger != nil {
 			s.AuditLogger.LogConnectionLimit(clientIP)
 		}
-		http.Error(w, "Connection limit exceeded", http.StatusTooManyRequests)
+		utils.Respond(w, r, http.StatusTooManyRequests, "Connection limit exceeded", func(msg string) {
+			s.Templates.Render(w, "error.html", map[string]interface{}{"Title": "Error", "Message": msg})
+		})
 		return
 	}
 	defer s.ConnLimiter.Disconnect(clientIP)
@@ -121,20 +123,26 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/ws/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 1 {
-		http.Error(w, "Invalid tunnel ID", http.StatusBadRequest)
+		utils.Respond(w, r, http.StatusBadRequest, "Invalid tunnel ID", func(msg string) {
+			s.Templates.Render(w, "error.html", map[string]interface{}{"Title": "Error", "Message": msg})
+		})
 		return
 	}
 
 	tunnelUUID := parts[0]
 
 	if !security.ValidateUUID(tunnelUUID) {
-		http.Error(w, "Invalid tunnel ID format", http.StatusBadRequest)
+		utils.Respond(w, r, http.StatusBadRequest, "Invalid tunnel ID format", func(msg string) {
+			s.Templates.Render(w, "error.html", map[string]interface{}{"Title": "Error", "Message": msg})
+		})
 		return
 	}
 
 	sess, ok := s.Store.Get(tunnelUUID)
 	if !ok {
-		http.Error(w, constants.MsgTunnelNotFound, http.StatusNotFound)
+		utils.Respond(w, r, http.StatusNotFound, constants.MsgTunnelNotFound, func(msg string) {
+			s.Templates.Render(w, "error.html", map[string]interface{}{"Title": "Error", "Message": msg})
+		})
 		return
 	}
 
@@ -205,7 +213,9 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 	path = strings.TrimSuffix(path, "/")
 
 	if !security.ValidatePath(path) {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
+		utils.Respond(w, r, http.StatusBadRequest, "Invalid path", func(msg string) {
+			s.Templates.Render(w, "error.html", map[string]interface{}{"Title": "Error", "Message": msg})
+		})
 		return
 	}
 
@@ -345,7 +355,9 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 				if s.AuditLogger != nil {
 					s.AuditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid CSRF token")
 				}
-				http.Error(w, "Invalid request", http.StatusForbidden)
+				utils.Respond(w, r, http.StatusForbidden, "Invalid request", func(msg string) {
+					s.Templates.Render(w, "error.html", map[string]interface{}{"Title": "Error", "Message": msg})
+				})
 				return
 			}
 

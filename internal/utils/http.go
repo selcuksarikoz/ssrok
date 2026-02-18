@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -46,4 +47,24 @@ func ConstructURL(scheme, host, path string) string {
 	}
 
 	return fmt.Sprintf("%s://%s:%s%s", scheme, hostname, port, path)
+}
+
+// Respond responds to the request with either JSON or HTML based on Accept header
+func Respond(w http.ResponseWriter, r *http.Request, statusCode int, message string, renderFunc func(string)) {
+	accept := r.Header.Get("Accept")
+
+	if strings.Contains(accept, "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		json.NewEncoder(w).Encode(map[string]string{"error": message})
+		return
+	}
+
+	if renderFunc != nil {
+		w.WriteHeader(statusCode)
+		renderFunc(message)
+		return
+	}
+
+	http.Error(w, message, statusCode)
 }
