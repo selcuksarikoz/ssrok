@@ -7,10 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/skip2/go-qrcode"
 
 	"ssrok/internal/constants"
 	"ssrok/internal/tunnel"
@@ -52,24 +53,20 @@ func PrintSep() {
 	fmt.Printf("  %s%s%s\n", ColorDim, strings.Repeat("─", 50), ColorReset)
 }
 
-func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath string) {
+func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, expiresAt, durationDisplay string) {
 	fmt.Print("\033?25l")
 	fmt.Print("\033[2J")
 
-	logChan := make(chan string, 100)
-	t.LogCallback = func(msg string) {
-		select {
-		case logChan <- msg:
-		default:
-		}
-	}
-
-	logBuffer := make([]string, 0, 15)
-	uiMutex := &sync.Mutex{}
+	qr, _ := qrcode.New(magicURL, qrcode.Low)
+	qr.DisableBorder = true
+	qrStr := qr.ToSmallString(false)
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	winchChan := make(chan os.Signal, 1)
+	signal.Notify(winchChan, syscall.SIGWINCH)
 
 	dashStatsChan := make(chan int64, 1)
 	go func() {
@@ -105,27 +102,22 @@ func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, ex
 
 	for {
 		select {
-		case msg := <-logChan:
-			msg = strings.TrimSuffix(msg, "\n")
-			logBuffer = append(logBuffer, msg)
-			if len(logBuffer) > 15 {
-				logBuffer = logBuffer[1:]
-			}
 		case activeDash := <-dashStatsChan:
-			uiMutex.Lock()
-			RenderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer, activeDash)
-			uiMutex.Unlock()
+			RenderTUI(t, publicURL, magicURL, qrStr, dashboardURL, expiresAt, durationDisplay, activeDash, false)
 		case <-ticker.C:
-			uiMutex.Lock()
-			RenderTUI(t, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath, logBuffer, 0)
-			uiMutex.Unlock()
+			RenderTUI(t, publicURL, magicURL, qrStr, dashboardURL, expiresAt, durationDisplay, 0, false)
+		case <-winchChan:
+			RenderTUI(t, publicURL, magicURL, qrStr, dashboardURL, expiresAt, durationDisplay, 0, true)
 		case <-sigChan:
 			return
 		}
 	}
 }
 
-func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, expiresAt, durationDisplay, logPath string, logs []string, activeFromDash int64) {
+func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, qrStr, dashboardURL, expiresAt, durationDisplay string, activeFromDash int64, clearScreen bool) {
+	if clearScreen {
+		fmt.Print("\033[2J")
+	}
 	fmt.Print("\033[H")
 
 	fmt.Printf("  %s%sssrok%s %sv%s%s\n", constants.ColorBold, constants.ColorCyan, constants.ColorReset, constants.ColorBold, constants.Version, constants.ColorReset)
@@ -147,22 +139,14 @@ func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, localAddr, e
 		ColorDim, ColorReset, totalReqs, ColorReset,
 		ColorDim, ColorReset, activeConns, ColorReset)
 	fmt.Println()
-
 	PrintField("magic url", magicURL, ColorCyan)
 	PrintField("public url", publicURL, ColorYellow)
 	PrintField("dashboard", dashboardURL, ColorPurple)
-	PrintField("local", localAddr, ColorReset)
 	PrintField("expires", fmt.Sprintf("%s (%s)", expiresAt, durationDisplay), ColorReset)
-	if logPath != "" {
-		PrintField("logs", logPath, ColorDim)
-	}
 
 	fmt.Println()
-	fmt.Printf("  %s%s%s\n", ColorDim, strings.Repeat("─", 50), ColorReset)
-
-	for _, log := range logs {
-		fmt.Printf("  %s%s\n", ColorDim, log)
-	}
+	fmt.Print(qrStr)
+	fmt.Println()
 
 	fmt.Print("\033[J")
 }

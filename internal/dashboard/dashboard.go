@@ -28,25 +28,29 @@ var upgrader = websocket.Upgrader{
 }
 
 type Dashboard struct {
-	mu        sync.RWMutex
-	logs      []types.HTTPLog
-	maxLogs   int
-	clients   map[*websocket.Conn]bool
-	clientsMu sync.RWMutex
-	server    *http.Server
-	port      int
-	publicURL string
-	logger    *logger.Logger
-	active    int64 // active tunnel connections
+	mu             sync.RWMutex
+	logs           []types.HTTPLog
+	maxLogs        int
+	clients        map[*websocket.Conn]bool
+	clientsMu      sync.RWMutex
+	server         *http.Server
+	port           int
+	publicURL      string
+	logger         *logger.Logger
+	logPath        string
+	securityEvents []types.SecurityEvent
+	active         int64 // active tunnel connections
 }
 
-func New(port int, publicURL string, log *logger.Logger) *Dashboard {
+func New(port int, publicURL string, log *logger.Logger, logPath string) *Dashboard {
 	return &Dashboard{
-		maxLogs:   constants.DashboardMaxLogs,
-		clients:   make(map[*websocket.Conn]bool),
-		port:      port,
-		publicURL: publicURL,
-		logger:    log,
+		maxLogs:        constants.DashboardMaxLogs,
+		clients:        make(map[*websocket.Conn]bool),
+		port:           port,
+		publicURL:      publicURL,
+		logger:         log,
+		logPath:        logPath,
+		securityEvents: make([]types.SecurityEvent, 0),
 	}
 }
 
@@ -56,6 +60,7 @@ func (d *Dashboard) Start() error {
 	mux.HandleFunc("/ws", d.handleWebSocket)
 	mux.HandleFunc("/api/logs", d.handleLogs)
 	mux.HandleFunc("/api/stats", d.handleStats)
+	mux.HandleFunc("/api/security", d.handleSecurityEvents)
 	mux.HandleFunc("/public-url", d.handlePublicURL)
 
 	d.server = &http.Server{
@@ -93,6 +98,34 @@ func (d *Dashboard) AddLog(logEntry types.HTTPLog) {
 	d.mu.Unlock()
 
 	go d.broadcastLog(logEntry)
+}
+
+func (d *Dashboard) AddSecurityEvent(event types.SecurityEvent) {
+	d.mu.Lock()
+	d.securityEvents = append(d.securityEvents, event)
+	if len(d.securityEvents) > d.maxLogs {
+		d.securityEvents = d.securityEvents[len(d.securityEvents)-d.maxLogs:]
+	}
+	d.mu.Unlock()
+
+	go d.broadcastSecurityEvent(event)
+}
+
+func (d *Dashboard) broadcastSecurityEvent(event types.SecurityEvent) {
+	d.clientsMu.RLock()
+	defer d.clientsMu.RUnlock()
+
+	data, err := json.Marshal(map[string]interface{}{"type": "security", "data": event})
+	if err != nil {
+		return
+	}
+
+	for client := range d.clients {
+		if err := client.WriteMessage(websocket.TextMessage, data); err != nil {
+			client.Close()
+			delete(d.clients, client)
+		}
+	}
 }
 
 func (d *Dashboard) broadcastLog(logEntry types.HTTPLog) {
@@ -207,6 +240,7 @@ func (d *Dashboard) handleStats(w http.ResponseWriter, r *http.Request) {
 		"active_requests":   activeVal,
 		"dashboard_clients": clientsCount,
 		"public_url":        d.publicURL,
+		"log_path":          d.logPath,
 	}
 	json.NewEncoder(w).Encode(stats)
 }
@@ -224,6 +258,19 @@ func (d *Dashboard) handlePublicURL(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"public_url": d.publicURL,
 	})
+}
+
+func (d *Dashboard) handleSecurityEvents(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	d.mu.RLock()
+	events := make([]types.SecurityEvent, len(d.securityEvents))
+	copy(events, d.securityEvents)
+	d.mu.RUnlock()
+	json.NewEncoder(w).Encode(events)
+}
+
+func (d *Dashboard) GetLogPath() string {
+	return d.logPath
 }
 
 func (d *Dashboard) GetURL() string {

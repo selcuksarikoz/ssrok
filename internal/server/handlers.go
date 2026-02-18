@@ -138,15 +138,6 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := r.URL.Query().Get("token")
-	if token == "" || !sess.VerifyToken(token) {
-		if s.AuditLogger != nil {
-			s.AuditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid or missing token")
-		}
-		http.Error(w, "Unauthorized: invalid or missing token", http.StatusUnauthorized)
-		return
-	}
-
 	log.Printf("🔌 WebSocket: Upgrading connection for tunnel: %s", tunnelUUID)
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  constants.WSBufferSize,
@@ -162,17 +153,25 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(int64(constants.MaxWSMessageSize))
 
-	sess.Conn = conn
-	sess.TunnelActive = true
-
-	log.Printf("🔔 WebSocket: Client connected, saving session: %s", tunnelUUID)
-	s.Store.Save(sess)
-
 	t := tunnel.NewTunnel(tunnelUUID, conn, sess.Port, sess.UseTLS, sess.E2EE)
-
 	s.TunnelMu.Lock()
 	s.Tunnels[tunnelUUID] = t
 	s.TunnelMu.Unlock()
+
+	token := r.URL.Query().Get("token")
+	if token == "" || !sess.VerifyToken(token) {
+		if s.AuditLogger != nil {
+			s.AuditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid or missing token")
+		}
+
+		t.SendLog(utils.FormatLog("🔒", "AUTH", 401, clientIP))
+		conn.Close()
+		return
+	}
+
+	sess.Conn = conn
+	sess.TunnelActive = true
+	s.Store.Save(sess)
 
 	log.Printf("🔌 Tunnel connected: %s -> localhost:%d", tunnelUUID, sess.Port)
 

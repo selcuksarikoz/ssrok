@@ -12,18 +12,21 @@ import (
 )
 
 type Tunnel struct {
-	UUID        string
-	WSConn      *websocket.Conn
-	Session     *yamux.Session
-	LocalPort   int
-	UseTLS      bool
-	mu          sync.RWMutex
-	isClosed    bool
-	log         *logger.Logger
-	localAddr   string
-	LogCallback func(string)
-	dashboard   *dashboard.Dashboard
-	E2EE        bool
+	UUID             string
+	WSConn           *websocket.Conn
+	Session          *yamux.Session
+	LocalPort        int
+	UseTLS           bool
+	mu               sync.RWMutex
+	isClosed         bool
+	log              *logger.Logger
+	localAddr        string
+	LogCallback      func(string)
+	SecurityCallback func(string)
+	dashboard        *dashboard.Dashboard
+	E2EE             bool
+
+	pendingLogs chan string
 
 	// Stats
 	BytesIn     int64 // atomic
@@ -35,12 +38,13 @@ type Tunnel struct {
 // NewTunnel creates a new tunnel instance
 func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool, e2ee bool) *Tunnel {
 	return &Tunnel{
-		UUID:      uuid,
-		WSConn:    wsConn,
-		LocalPort: localPort,
-		UseTLS:    useTLS,
-		E2EE:      e2ee,
-		localAddr: fmt.Sprintf("localhost:%d", localPort),
+		UUID:        uuid,
+		WSConn:      wsConn,
+		LocalPort:   localPort,
+		UseTLS:      useTLS,
+		E2EE:        e2ee,
+		localAddr:   fmt.Sprintf("localhost:%d", localPort),
+		pendingLogs: make(chan string, 100),
 	}
 }
 

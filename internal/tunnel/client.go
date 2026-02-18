@@ -106,9 +106,5 @@ func ConnectClient(wsURL string, targetAddr string, sessionID string, skipTLSVer
 
 	log.LogEvent("Yamux session established", localPort)
 
-	tunnel.LogCallback = func(msg string) {
-		fmt.Printf("  %s%s%s\n", constants.ColorCyan, msg, constants.ColorReset)
-	}
-
 	return tunnel, nil
 }

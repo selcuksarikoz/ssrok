@@ -3,14 +3,24 @@ package client
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"ssrok/internal/constants"
 	"ssrok/internal/dashboard"
 	"ssrok/internal/tunnel"
+	"ssrok/internal/types"
 	"ssrok/internal/utils"
 )
+
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
 
 // Start initializes the client, runs the wizard, and manages the tunnel lifecycle
 func Start(targetHost string, targetPort int, useTLS bool) {
@@ -69,11 +79,6 @@ func Start(targetHost string, targetPort int, useTLS bool) {
 		}
 	}()
 
-	localProto := "http"
-	if useTLS {
-		localProto = "https"
-	}
-	localAddr := fmt.Sprintf("%s://%s:%d", localProto, targetHost, targetPort)
 	expiresAt := time.Now().Add(resp.ExpiresIn).Format(constants.TimeFormatShort)
 	durationDisplay := utils.FormatDuration(resp.ExpiresIn)
 
@@ -82,10 +87,28 @@ func Start(targetHost string, targetPort int, useTLS bool) {
 	displayPublicURL := strings.Replace(resp.URL, ":8080", "", -1)
 	dashboardURL := fmt.Sprintf("http://%s:%d", constants.DashboardHost, constants.DashboardPort)
 
-	dash := dashboard.New(constants.DashboardPort, displayPublicURL, t.Logger())
+	dash := dashboard.New(constants.DashboardPort, displayPublicURL, t.Logger(), t.GetLogPath())
 	if err := dash.Start(); err == nil {
 		t.SetDashboard(dash)
 	}
 
-	StartTUI(t, displayPublicURL, displayMagicURL, dashboardURL, localAddr, expiresAt, durationDisplay, t.GetLogPath())
+	t.LogCallback = func(string) {}
+	t.SecurityCallback = func(msg string) {
+		if dash != nil {
+			cleanMsg := stripANSI(msg)
+			parts := strings.Fields(cleanMsg)
+			if len(parts) >= 4 {
+				dash.AddSecurityEvent(types.SecurityEvent{
+					ID:        uuid.New().String(),
+					EventType: parts[1],
+					IP:        parts[3],
+					Details:   msg,
+					Severity:  "warning",
+					Timestamp: time.Now(),
+				})
+			}
+		}
+	}
+
+	StartTUI(t, displayPublicURL, displayMagicURL, dashboardURL, expiresAt, durationDisplay)
 }

@@ -115,6 +115,11 @@ var (
 		"/@fs",
 		"/browser-sync",
 		"/sockjs-node",
+		"/__nextjs",
+		"/hot-update",
+		"/__HMR",
+		"/__ws",
+		"/_hot",
 	}
 )
 

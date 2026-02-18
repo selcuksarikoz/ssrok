@@ -25,3 +25,12 @@ type HTTPLog struct {
 	Request    RequestDetails  `json:"request"`
 	Response   ResponseDetails `json:"response"`
 }
+
+type SecurityEvent struct {
+	ID        string    `json:"id"`
+	EventType string    `json:"event_type"`
+	IP        string    `json:"ip"`
+	Details   string    `json:"details"`
+	Severity  string    `json:"severity"`
+	Timestamp time.Time `json:"timestamp"`
+}

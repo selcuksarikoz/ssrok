@@ -33,10 +33,11 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 	if typeBuf[0] == constants.StreamTypeLog {
 		msg, err := io.ReadAll(stream)
 		if err == nil && len(msg) > 0 {
-			if t.LogCallback != nil {
-				t.LogCallback(string(msg))
-			} else {
-				fmt.Printf("Remote: %s\n", string(msg))
+			msgStr := string(msg)
+			if t.SecurityCallback != nil && (strings.HasPrefix(msgStr, "🔒") || strings.HasPrefix(msgStr, "⛔")) {
+				t.SecurityCallback(msgStr)
+			} else if t.LogCallback != nil {
+				t.LogCallback(msgStr)
 			}
 		}
 		return
@@ -226,11 +227,8 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 
 		logLine := utils.FormatLog("", method, statusCode, path)
 
-		// Use callback if available (for TUI), otherwise print to stdout
 		if t.LogCallback != nil {
 			t.LogCallback(logLine)
-		} else {
-			fmt.Print(logLine)
 		}
 	}
 
@@ -280,6 +278,13 @@ func (t *Tunnel) HandleWebSocket() error {
 	}
 
 	t.Session = session
+
+	// Flush pending logs
+	go func() {
+		for msg := range t.pendingLogs {
+			t.sendLogMessage(msg)
+		}
+	}()
 
 	for {
 		stream, err := session.AcceptStream()
@@ -337,8 +342,17 @@ func (t *Tunnel) OpenProxyStream() (net.Conn, error) {
 // SendLog sends a log message to the client
 func (t *Tunnel) SendLog(message string) error {
 	if t.Session == nil {
-		return fmt.Errorf("session not initialized")
+		select {
+		case t.pendingLogs <- message:
+			return nil
+		default:
+			return fmt.Errorf("pending logs channel full")
+		}
 	}
+	return t.sendLogMessage(message)
+}
+
+func (t *Tunnel) sendLogMessage(message string) error {
 	stream, err := t.Session.OpenStream()
 	if err != nil {
 		return err
