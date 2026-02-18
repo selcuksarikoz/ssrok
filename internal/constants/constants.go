@@ -83,6 +83,14 @@ const (
 )
 
 const (
+	StreamingThresholdSize   = 10 * 1024 * 1024 // 10MB - above this consider streaming
+	RequestSampleRate        = 10               // Log 1 in every N requests for high-volume
+	RequestFloodingThreshold = 100              // Requests per minute to trigger flooding detection
+	HighVolumeWindow         = time.Minute
+	MaxAuditLogsPerMinute    = 1000 // Limit audit logs to prevent disk flooding
+)
+
+const (
 	EndpointRoot      = "/"
 	EndpointRegister  = "/register"
 	EndpointWebSocket = "/ws/"
@@ -121,6 +129,25 @@ var (
 		"/__HMR",
 		"/__ws",
 		"/_hot",
+	}
+
+	StaticAssetExtensions = []string{
+		".css",
+		".js",
+		".png",
+		".jpg",
+		".jpeg",
+		".gif",
+		".svg",
+		".ico",
+		".woff",
+		".woff2",
+		".ttf",
+		".eot",
+		".otf",
+		".webp",
+		".map",
+		".json",
 	}
 )
 

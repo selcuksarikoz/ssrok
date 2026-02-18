@@ -22,9 +22,11 @@ type AuditEvent struct {
 }
 
 type AuditLogger struct {
-	mu   sync.RWMutex
-	file *os.File
-	enc  *json.Encoder
+	mu          sync.RWMutex
+	file        *os.File
+	enc         *json.Encoder
+	logCount    map[string]int
+	windowStart time.Time
 }
 
 var (
@@ -57,8 +59,10 @@ func newAuditLogger() (*AuditLogger, error) {
 	}
 
 	return &AuditLogger{
-		file: file,
-		enc:  json.NewEncoder(file),
+		file:        file,
+		enc:         json.NewEncoder(file),
+		logCount:    make(map[string]int),
+		windowStart: time.Now(),
 	}, nil
 }
 
@@ -82,7 +86,24 @@ func (al *AuditLogger) Log(event AuditEvent) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
-	event.Timestamp = time.Now()
+	now := time.Now()
+
+	if now.Sub(al.windowStart) > time.Minute {
+		al.windowStart = now
+		al.logCount = make(map[string]int)
+	}
+
+	totalLogs := 0
+	for _, count := range al.logCount {
+		totalLogs += count
+	}
+
+	if totalLogs >= constants.MaxAuditLogsPerMinute {
+		return
+	}
+
+	al.logCount[event.EventType]++
+	event.Timestamp = now
 	al.enc.Encode(event)
 }
 
@@ -132,6 +153,76 @@ func (al *AuditLogger) LogConnectionLimit(ip string) {
 		IP:        ip,
 		Details:   "Connection limit exceeded",
 		Severity:  "warning",
+	})
+}
+
+func (al *AuditLogger) LogTunnelRegister(ip, tunnelUUID string, port int) {
+	al.Log(AuditEvent{
+		EventType:  "tunnel_register",
+		IP:         ip,
+		TunnelUUID: tunnelUUID,
+		Details:    fmt.Sprintf("Tunnel registered for port %d", port),
+		Severity:   "info",
+	})
+}
+
+func (al *AuditLogger) LogTunnelConnect(ip, tunnelUUID string) {
+	al.Log(AuditEvent{
+		EventType:  "tunnel_connect",
+		IP:         ip,
+		TunnelUUID: tunnelUUID,
+		Details:    "Client connected to tunnel via WebSocket",
+		Severity:   "info",
+	})
+}
+
+func (al *AuditLogger) LogTunnelDisconnect(ip, tunnelUUID, reason string) {
+	al.Log(AuditEvent{
+		EventType:  "tunnel_disconnect",
+		IP:         ip,
+		TunnelUUID: tunnelUUID,
+		Details:    fmt.Sprintf("Tunnel disconnected: %s", reason),
+		Severity:   "info",
+	})
+}
+
+func (al *AuditLogger) LogProxyRequest(ip, tunnelUUID, method, path string, statusCode int, duration time.Duration) {
+	al.Log(AuditEvent{
+		EventType:  "proxy_request",
+		IP:         ip,
+		TunnelUUID: tunnelUUID,
+		Details:    fmt.Sprintf("%s %s -> %d (%v)", method, path, statusCode, duration),
+		Severity:   "info",
+	})
+}
+
+func (al *AuditLogger) LogStreamingRequest(ip, tunnelUUID, method, path string, contentLength int64) {
+	al.Log(AuditEvent{
+		EventType:  "streaming_request",
+		IP:         ip,
+		TunnelUUID: tunnelUUID,
+		Details:    fmt.Sprintf("%s %s (streaming, size: %d bytes)", method, path, contentLength),
+		Severity:   "info",
+	})
+}
+
+func (al *AuditLogger) LogRequestFlooding(ip, tunnelUUID string, requestCount int, window time.Duration) {
+	al.Log(AuditEvent{
+		EventType:  "request_flooding",
+		IP:         ip,
+		TunnelUUID: tunnelUUID,
+		Details:    fmt.Sprintf("High request volume detected: %d requests in %v", requestCount, window),
+		Severity:   "warning",
+	})
+}
+
+func (al *AuditLogger) LogInvalidRequest(ip, tunnelUUID, path, reason string) {
+	al.Log(AuditEvent{
+		EventType:  "invalid_request",
+		IP:         ip,
+		TunnelUUID: tunnelUUID,
+		Details:    fmt.Sprintf("Invalid request to %s: %s", path, reason),
+		Severity:   "warning",
 	})
 }
 

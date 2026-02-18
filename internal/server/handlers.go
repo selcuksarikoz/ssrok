@@ -22,6 +22,8 @@ import (
 )
 
 func (s *Server) HandleRegister(w http.ResponseWriter, r *http.Request) {
+	clientIP := security.GetClientIP(r)
+
 	if r.Method != http.MethodPost {
 		http.Error(w, constants.MsgMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
@@ -76,6 +78,10 @@ func (s *Server) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("🔔 Register: New tunnel created: %s", tunnelUUID)
 	s.Store.Save(sess)
+
+	if s.AuditLogger != nil {
+		s.AuditLogger.LogTunnelRegister(clientIP, tunnelUUID, req.Port)
+	}
 
 	scheme := utils.GetScheme(r)
 	log.Printf("🌐 Detected scheme: %s (TLS: %v, X-Forwarded-Proto: %s)", scheme, r.TLS != nil, r.Header.Get("X-Forwarded-Proto"))
@@ -179,6 +185,10 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sess.TunnelActive = true
 	s.Store.Save(sess)
 
+	if s.AuditLogger != nil {
+		s.AuditLogger.LogTunnelConnect(clientIP, tunnelUUID)
+	}
+
 	log.Printf("🔌 Tunnel connected: %s -> localhost:%d", tunnelUUID, sess.Port)
 
 	if err := t.HandleWebSocket(); err != nil {
@@ -191,6 +201,10 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.TunnelMu.Unlock()
 
 	s.Store.Delete(tunnelUUID)
+
+	if s.AuditLogger != nil {
+		s.AuditLogger.LogTunnelDisconnect(clientIP, tunnelUUID, "normal disconnect")
+	}
 
 	log.Printf("🔌 Tunnel disconnected: %s", tunnelUUID)
 }
@@ -287,7 +301,14 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Save the session with the updated request count/timestamp
+
+	if sess.IsHighVolumeClient(clientIP) {
+		if s.AuditLogger != nil {
+			s.AuditLogger.LogRequestFlooding(clientIP, tunnelUUID, sess.RequestCount[clientIP], constants.HighVolumeWindow)
+		}
+		log.Printf("⚠️  High volume detected from %s: %d requests/min", clientIP, sess.RequestCount[clientIP])
+	}
+
 	s.Store.Save(sess)
 
 	var authenticated bool
@@ -460,11 +481,16 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.ProxyRequest(t, w, r, targetPath)
+	s.ProxyRequest(t, w, r, targetPath, sess)
 }
 
-func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path string) {
+func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.Request, path string, sess *session.Session) {
+	clientIP := security.GetClientIP(r)
+	startTime := time.Now()
+
 	shouldLog := true
+	isStaticAsset := utils.IsStaticAsset(path)
+
 	for _, prefix := range constants.IgnoredLogPrefixes {
 		if strings.HasPrefix(path, prefix) {
 			shouldLog = false
@@ -472,8 +498,8 @@ func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.R
 		}
 	}
 
-	if shouldLog {
-		log.Printf("👤 User connected: %s -> %s %s", security.GetClientIP(r), r.Method, path)
+	if shouldLog && !isStaticAsset {
+		log.Printf("👤 User connected: %s -> %s %s", clientIP, r.Method, path)
 	}
 
 	var bodyBytes []byte
@@ -595,6 +621,25 @@ func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.R
 	w.WriteHeader(resp.StatusCode)
 
 	injection := fmt.Sprintf(`<head><base href="/%s/"><script>(function(){var p="/%s";var fp=function(u){if(u&&u.startsWith("/")&&!u.startsWith(p)){return u==="/"?p:p+u;}return u;};var op=history.pushState;history.pushState=function(d,t,u){return op.call(this,d,t,fp(u));};var or=history.replaceState;history.replaceState=function(d,t,u){return or.call(this,d,t,fp(u));};})();</script>`, t.UUID, t.UUID)
+
+	duration := time.Since(startTime)
+
+	isStreaming := false
+	if resp.ContentLength > constants.StreamingThresholdSize || resp.ContentLength == -1 {
+		isStreaming = true
+	}
+
+	if s.AuditLogger != nil && shouldLog {
+		if isStaticAsset {
+			if sess.RecordStaticAssetRequest(clientIP) {
+				s.AuditLogger.LogProxyRequest(clientIP, t.UUID, r.Method, path+" (static assets)", resp.StatusCode, duration)
+			}
+		} else if isStreaming {
+			s.AuditLogger.LogStreamingRequest(clientIP, t.UUID, r.Method, path, resp.ContentLength)
+		} else if sess.ShouldSampleRequest(clientIP) {
+			s.AuditLogger.LogProxyRequest(clientIP, t.UUID, r.Method, path, resp.StatusCode, duration)
+		}
+	}
 
 	if isHTML {
 		bodyBytes, err := io.ReadAll(resp.Body)

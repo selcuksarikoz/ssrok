@@ -2,7 +2,20 @@ package utils
 
 import (
 	"strings"
+
+	"ssrok/internal/constants"
 )
+
+// IsStaticAsset checks if the path is a static asset (CSS, JS, images, etc.)
+func IsStaticAsset(path string) bool {
+	lowerPath := strings.ToLower(path)
+	for _, ext := range constants.StaticAssetExtensions {
+		if strings.HasSuffix(lowerPath, ext) {
+			return true
+		}
+	}
+	return false
+}
 
 // NormalizeServerURL trims trailing slash and determines if TLS verification should be skipped
 func NormalizeServerURL(serverURL string) (string, bool) {
