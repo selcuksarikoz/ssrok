@@ -39,6 +39,10 @@ func main() {
 		utils.RunUpdate()
 	}
 
+	if utils.CheckForUpdate() {
+		fmt.Printf("  %s %sNew version available! Run 'ssrok -update' to update.%s\n", constants.SymbolConfetti, constants.ColorBlue, constants.ColorReset)
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Println(constants.MsgUsage)
 		fmt.Println(constants.MsgExample)

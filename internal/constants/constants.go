@@ -186,6 +186,7 @@ const (
 	ColorYellow = "\033[33m"
 	ColorRed    = "\033[31m"
 	ColorPurple = "\033[35m"
+	ColorBlue   = "\033[34m"
 )
 
 const (
@@ -214,4 +215,5 @@ const (
 	SymbolWarning  = "⛔"
 	SymbolView     = "👤"
 	SymbolNotify   = "🔔"
+	SymbolConfetti = "🎊"
 )
