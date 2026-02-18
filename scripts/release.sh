@@ -89,8 +89,12 @@ sed -i '' 's|github.com/ssrok/ssrok|github.com/selcuksarikoz/ssrok|g' Formula/ss
 sed -i '' 's|download/v[0-9.]*/|download/v'"$NEW_VERSION"'/|g' Formula/ssrok.rb
 
 # Update SHA256 checksums - macOS arm64 and amd64
-sed -i '' '/darwin-arm64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_DARWIN_ARM64"'"/' Formula/ssrok.rb
-sed -i '' '/darwin-amd64/,/sha256/s/sha256 "[a-f0-9]*"/sha256 "'"$SHA256_DARWIN_AMD64"'"/' Formula/ssrok.rb
+sed -i '' '/darwin-arm64/,/sha256/s/sha256 "[^"]*"/sha256 "'"$SHA256_DARWIN_ARM64"'"/' Formula/ssrok.rb
+sed -i '' '/darwin-amd64/,/sha256/s/sha256 "[^"]*"/sha256 "'"$SHA256_DARWIN_AMD64"'"/' Formula/ssrok.rb
+
+# Update SHA256 checksums - Linux arm64 and amd64
+sed -i '' '/linux-arm64/,/sha256/s/sha256 "[^"]*"/sha256 "'"$SHA256_LINUX_ARM64"'"/' Formula/ssrok.rb
+sed -i '' '/linux-amd64/,/sha256/s/sha256 "[^"]*"/sha256 "'"$SHA256_LINUX_AMD64"'"/' Formula/ssrok.rb
 
 echo "Updating version.json..."
 

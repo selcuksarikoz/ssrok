@@ -52,8 +52,8 @@ That's it. You'll get:
 **macOS:**
 
 ```bash
-curl -sL https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-darwin-arm64 -o /usr/local/bin/ssrok
-chmod +x /usr/local/bin/ssrok
+sudo curl -sL https://github.com/selcuksarikoz/ssrok/releases/latest/download/ssrok-darwin-arm64 -o /usr/local/bin/ssrok
+sudo chmod +x /usr/local/bin/ssrok
 ```
 
 ### via Homebrew (Recommended)
@@ -149,17 +149,17 @@ Make sure to configure the Environment Variables (see below) to match your domai
 
 ## Features
 
-| Feature              | Description                       |
-| -------------------- | --------------------------------- |
-| ⚡ **Fast**          | 128KB buffers, yamux multiplexing |
+| Feature               | Description                                  |
+| --------------------- | -------------------------------------------- |
+| ⚡ **Fast**           | 128KB buffers, yamux multiplexing            |
 | 🔒 **E2E Encryption** | ChaCha20-Poly1305, server cannot see traffic |
-| 🔐 **Secure**        | Token auth, optional password     |
-| 🎫 **Magic Links**   | URLs with embedded tokens         |
-| ⏱️ **Ephemeral**     | Auto-expire after 1 hour          |
-| 🚦 **Rate Limiting** | Per-IP, per-session throttling    |
-| 📊 **Dashboard**     | Real-time request inspector       |
-| 📝 **Session Logs**  | JSON logs for each tunnel         |
-| 💾 **Redis**         | Optional persistence              |
+| 🔐 **Secure**         | Token auth, optional password                |
+| 🎫 **Magic Links**    | URLs with embedded tokens                    |
+| ⏱️ **Ephemeral**      | Auto-expire after 1 hour                     |
+| 🚦 **Rate Limiting**  | Per-IP, per-session throttling               |
+| 📊 **Dashboard**      | Real-time request inspector                  |
+| 📝 **Session Logs**   | JSON logs for each tunnel                    |
+| 💾 **Redis**          | Optional persistence                         |
 
 ## Dashboard
 
