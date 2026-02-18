@@ -3,11 +3,11 @@ package security
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
-	"syscall"
 	"time"
 
 	"ssrok/internal/constants"
@@ -58,7 +58,6 @@ func newAuditLogger() (*AuditLogger, error) {
 		return nil, err
 	}
 
-	// Clean up old log files
 	go cleanupOldLogs(dir)
 
 	filename := filepath.Join(dir, fmt.Sprintf("audit-%s.log", time.Now().Format("2006-01-02")))
@@ -79,7 +78,6 @@ func newAuditLogger() (*AuditLogger, error) {
 		disabled:    false,
 	}
 
-	// Start periodic flush goroutine
 	go al.periodicFlush()
 
 	return al, nil
@@ -105,6 +103,7 @@ func cleanupOldLogs(dir string) {
 	cutoff := time.Now().AddDate(0, 0, -constants.MaxAuditLogRetentionDays)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		log.Printf("Audit: failed to read log directory: %v", err)
 		return
 	}
 
@@ -114,10 +113,13 @@ func cleanupOldLogs(dir string) {
 		}
 		info, err := entry.Info()
 		if err != nil {
+			log.Printf("Audit: failed to get file info for %s: %v", entry.Name(), err)
 			continue
 		}
 		if info.ModTime().Before(cutoff) {
-			os.Remove(filepath.Join(dir, entry.Name()))
+			if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil {
+				log.Printf("Audit: failed to remove old log %s: %v", entry.Name(), err)
+			}
 		}
 	}
 }
@@ -139,39 +141,25 @@ func (al *AuditLogger) Flush() error {
 		return nil
 	}
 
-	// Check disk space
 	if !al.hasEnoughDiskSpace() {
 		al.disabled = true
 		return fmt.Errorf("insufficient disk space for audit logging")
 	}
 
-	// Check file size and rotate if needed
 	if err := al.checkAndRotateFile(); err != nil {
 		return err
 	}
 
-	// Write buffered logs
 	for _, event := range al.buffer {
 		if err := al.enc.Encode(event); err != nil {
 			return err
 		}
 	}
 
-	// Clear buffer
 	al.buffer = al.buffer[:0]
 	al.lastFlush = time.Now()
 
 	return nil
-}
-
-func (al *AuditLogger) hasEnoughDiskSpace() bool {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(al.logDir, &stat); err != nil {
-		return true // If we can't check, assume it's OK
-	}
-
-	available := stat.Bavail * uint64(stat.Bsize)
-	return available > constants.MinDiskSpaceRequired
 }
 
 func (al *AuditLogger) checkAndRotateFile() error {
@@ -184,16 +172,24 @@ func (al *AuditLogger) checkAndRotateFile() error {
 		return nil
 	}
 
-	// Close current file
-	al.file.Close()
+	if err := al.file.Close(); err != nil {
+		log.Printf("Audit: failed to close file for rotation: %v", err)
+	}
 
-	// Rename current file with timestamp
 	now := time.Now()
 	oldFilename := filepath.Join(al.logDir, fmt.Sprintf("audit-%s.log", now.Format("2006-01-02")))
 	newFilename := filepath.Join(al.logDir, fmt.Sprintf("audit-%s-%s.log", now.Format("2006-01-02"), now.Format("150405")))
-	os.Rename(oldFilename, newFilename)
+	if err := os.Rename(oldFilename, newFilename); err != nil {
+		log.Printf("Audit: failed to rotate log file: %v", err)
+		file, err := os.OpenFile(oldFilename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to reopen log file after rotation failure: %w", err)
+		}
+		al.file = file
+		al.enc = json.NewEncoder(file)
+		return nil
+	}
 
-	// Create new file
 	file, err := os.OpenFile(oldFilename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -231,10 +227,8 @@ func (al *AuditLogger) Log(event AuditEvent) {
 	al.logCount[event.EventType]++
 	event.Timestamp = now
 
-	// Add to buffer
 	al.buffer = append(al.buffer, event)
 
-	// Flush if buffer is full
 	if len(al.buffer) >= al.bufferSize {
 		al.flushUnlocked()
 	}
@@ -245,21 +239,24 @@ func (al *AuditLogger) flushUnlocked() {
 		return
 	}
 
-	// Check disk space
 	if !al.hasEnoughDiskSpace() {
+		al.disabled = true
+		log.Printf("Audit: disabled due to insufficient disk space")
+		return
+	}
+
+	if err := al.checkAndRotateFile(); err != nil {
+		log.Printf("Audit: failed to rotate file: %v", err)
 		al.disabled = true
 		return
 	}
 
-	// Check file size and rotate if needed
-	al.checkAndRotateFile()
-
-	// Write buffered logs
 	for _, event := range al.buffer {
-		al.enc.Encode(event)
+		if err := al.enc.Encode(event); err != nil {
+			log.Printf("Audit: failed to encode event: %v", err)
+		}
 	}
 
-	// Clear buffer
 	al.buffer = al.buffer[:0]
 	al.lastFlush = time.Now()
 }
@@ -387,7 +384,6 @@ func (al *AuditLogger) Close() error {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
-	// Flush remaining buffer
 	if len(al.buffer) > 0 && !al.disabled {
 		for _, event := range al.buffer {
 			al.enc.Encode(event)

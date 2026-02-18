@@ -3,9 +3,11 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -162,26 +164,27 @@ func runBrewUpdate(newVersion string) {
 }
 
 func runCurlUpdate(url, goos, newVersion string) {
-	tmpFile := "/tmp/ssrok"
+	tmpDir := os.TempDir()
+	var tmpFile string
+	var binaryName string
+
 	if goos == "windows" {
-		tmpFile = "ssrok.exe"
+		binaryName = "ssrok.exe"
+	} else {
+		binaryName = "ssrok"
 	}
+	tmpFile = filepath.Join(tmpDir, binaryName)
 
 	fmt.Printf("  Downloading to %s...\n", tmpFile)
 
-	cmd := exec.Command("curl", "-fsSL", url, "-o", tmpFile)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	if err := downloadFile(url, tmpFile); err != nil {
 		fmt.Printf("  %sDownload failed: %s%s\n", constants.ColorRed, err.Error(), constants.ColorReset)
 		os.Exit(1)
 	}
 
 	if goos != "windows" {
-		chmodCmd := exec.Command("chmod", "+x", tmpFile)
-		if err := chmodCmd.Run(); err != nil {
-			fmt.Printf("  %sWarning: failed to chmod +x%s\n", constants.ColorYellow, constants.ColorReset)
+		if err := os.Chmod(tmpFile, 0755); err != nil {
+			fmt.Printf("  %sWarning: failed to set executable permission%s\n", constants.ColorYellow, constants.ColorReset)
 		}
 	}
 
@@ -190,6 +193,27 @@ func runCurlUpdate(url, goos, newVersion string) {
 	fmt.Printf("  Binary saved to: %s\n", tmpFile)
 	fmt.Println("  Move it to your PATH to use the new version.")
 	os.Exit(0)
+}
+
+func downloadFile(url, filepath string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
 
 func CheckForUpdate() bool {

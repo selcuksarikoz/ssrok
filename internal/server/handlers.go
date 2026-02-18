@@ -105,7 +105,9 @@ func (s *Server) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("Failed to encode register response: %v", err)
+	}
 
 	log.Printf("✅ New tunnel registered: %s (expires in %s)", tunnelUUID, sessionDuration)
 }
@@ -505,9 +507,12 @@ func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.R
 	var bodyBytes []byte
 	if r.Body != nil {
 		r.Body = http.MaxBytesReader(w, r.Body, constants.MaxBodySize)
-		bodyBytes, _ = io.ReadAll(r.Body)
+		var err error
+		bodyBytes, err = io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Proxy: failed to read request body: %v", err)
+		}
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
 	}
 
 	stream, err := t.OpenProxyStream()
@@ -620,7 +625,8 @@ func (s *Server) ProxyRequest(t *tunnel.Tunnel, w http.ResponseWriter, r *http.R
 	isHTML := strings.Contains(resp.Header.Get("Content-Type"), "text/html")
 	w.WriteHeader(resp.StatusCode)
 
-	injection := fmt.Sprintf(`<head><base href="/%s/"><script>(function(){var p="/%s";var fp=function(u){if(u&&u.startsWith("/")&&!u.startsWith(p)){return u==="/"?p:p+u;}return u;};var op=history.pushState;history.pushState=function(d,t,u){return op.call(this,d,t,fp(u));};var or=history.replaceState;history.replaceState=function(d,t,u){return or.call(this,d,t,fp(u));};})();</script>`, t.UUID, t.UUID)
+	safeUUID := security.SanitizeHTML(t.UUID)
+	injection := fmt.Sprintf(`<head><base href="/%s/"><script>(function(){var p="/%s";var fp=function(u){if(u&&u.startsWith("/")&&!u.startsWith(p)){return u==="/"?p:p+u;}return u;};var op=history.pushState;history.pushState=function(d,t,u){return op.call(this,d,t,fp(u));};var or=history.replaceState;history.replaceState=function(d,t,u){return or.call(this,d,t,fp(u));};})();</script>`, safeUUID, safeUUID)
 
 	duration := time.Since(startTime)
 

@@ -1,9 +1,11 @@
 package security
 
 import (
+	"html"
 	"net/http"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"ssrok/internal/constants"
 )
@@ -55,6 +57,10 @@ func SanitizeInput(input string) string {
 	return result.String()
 }
 
+func SanitizeHTML(input string) string {
+	return html.EscapeString(input)
+}
+
 func ValidatePath(path string) bool {
 	if strings.Contains(path, "..") {
 		return false
@@ -74,49 +80,95 @@ func MaxBodySize(maxSize int64) func(http.Handler) http.Handler {
 	}
 }
 
-var (
-	commandInjectionPatterns = []string{
-		`;`,
-		`&&`,
-		`||`,
-		`\|`,
-		`\`,
-		`>`,
-		`<`,
-		`\$_`,
-		`\$\(`,
-		`\` + "`",
-		`cmd=`,
-		`exec`,
-		`system`,
-		`passthru`,
-		`shell_exec`,
-		`popen`,
-		`proc_open`,
-		`eval\(`,
-		`base64_decode`,
-		`assert\(`,
-		`preg_replace.*\/e`,
-		`create_function`,
-		`call_user_func`,
-		`../`,
-		`..\\`,
-		`%2e%2e`,
-		`rm -rf`,
-		`wget`,
-		`curl.*\|`,
-		`nc -`,
-		`/bin/sh`,
-		`/bin/bash`,
-	}
-	commandInjectionRegex = regexp.MustCompile(`(?i)(` + strings.Join(commandInjectionPatterns, `|`) + `)`)
-)
+var dangerousChars = []string{
+	";", "|", "&", "$", "`", "(", ")", "{", "}", "[", "]",
+	"<", ">", "'", "\"", "\\", "\n", "\r", "\x00",
+}
+
+var dangerousKeywords = []string{
+	"exec", "eval", "system", "passthru", "shell_exec", "popen", "proc_open",
+	"base64_decode", "assert", "create_function", "call_user_func",
+	"preg_replace", "include", "require", "include_once", "require_once",
+	"wget", "curl", "nc", "netcat", "telnet", "ssh", "scp", "sftp",
+	"rm", "mv", "cp", "chmod", "chown", "kill", "pkill", "killall",
+	"cat", "head", "tail", "less", "more", "nano", "vim", "vi",
+	"/bin/sh", "/bin/bash", "/bin/zsh", "/bin/dash",
+	"python", "perl", "ruby", "php", "node", "nodejs",
+	"select", "insert", "update", "delete", "drop", "union", "truncate",
+}
+
+var commandInjectionRegex = regexp.MustCompile(`(?i)(` + strings.Join(dangerousKeywords, `|`) + `)`)
 
 func DetectCommandInjection(values ...string) bool {
 	for _, v := range values {
-		if commandInjectionRegex.MatchString(v) {
+		lowerV := strings.ToLower(v)
+
+		for _, char := range dangerousChars {
+			if strings.Contains(v, char) {
+				if !isAllowedChar(v, char) {
+					return true
+				}
+			}
+		}
+
+		if commandInjectionRegex.MatchString(lowerV) {
+			if !isInSafeContext(v, lowerV) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isAllowedChar(value, char string) bool {
+	safePatterns := []string{
+		".html", ".css", ".js", ".json", ".xml", ".txt",
+		".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+		".woff", ".woff2", ".ttf", ".eot", ".otf", ".webp",
+		".mp4", ".webm", ".mp3", ".wav", ".pdf", ".zip",
+		"text/html", "application/json", "text/plain",
+	}
+
+	lowerValue := strings.ToLower(value)
+	for _, pattern := range safePatterns {
+		if strings.Contains(lowerValue, pattern) {
 			return true
 		}
 	}
 	return false
+}
+
+func isInSafeContext(original, lowerValue string) bool {
+	safeContexts := []string{
+		"content-type",
+		"accept",
+		"user-agent",
+		"referer",
+		"filename=",
+		".exec.",
+		".exe",
+	}
+
+	for _, ctx := range safeContexts {
+		if strings.Contains(lowerValue, ctx) {
+			return true
+		}
+	}
+	return false
+}
+
+func ValidateStringLength(s string, minLen, maxLen int) bool {
+	length := utf8.RuneCountInString(s)
+	return length >= minLen && length <= maxLen
+}
+
+func IsPrintableASCII(s string) bool {
+	for _, r := range s {
+		if r < 32 || r > 126 {
+			if r != '\n' && r != '\r' && r != '\t' {
+				return false
+			}
+		}
+	}
+	return true
 }

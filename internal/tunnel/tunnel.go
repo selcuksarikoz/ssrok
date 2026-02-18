@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/yamux"
 
+	"ssrok/internal/constants"
 	"ssrok/internal/dashboard"
 	"ssrok/internal/logger"
 )
@@ -46,7 +47,7 @@ func NewTunnel(uuid string, wsConn *websocket.Conn, localPort int, useTLS bool, 
 		UseTLS:      useTLS,
 		E2EE:        e2ee,
 		localAddr:   fmt.Sprintf("localhost:%d", localPort),
-		pendingLogs: make(chan string, 100),
+		pendingLogs: make(chan string, constants.PendingLogBufferSize),
 	}
 }
 

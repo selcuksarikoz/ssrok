@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"ssrok/internal/constants"
+	"ssrok/internal/utils"
 )
 
 type Session struct {
@@ -127,21 +128,21 @@ func (s *Session) RecordStaticAssetRequest(ip string) bool {
 		return false
 	}
 
-	if s.StaticAssetCount[ip] > 50 {
+	if s.StaticAssetCount[ip] > constants.StaticAssetLogThreshold {
 		return true
 	}
 
-	return s.StaticAssetCount[ip]%10 == 0
+	return s.StaticAssetCount[ip]%constants.StaticAssetSampleRate == 0
 }
 
 func (s *Session) VerifyToken(token string) bool {
-	providedHash := HashSHA256(token)
-	return subtleConstantTimeCompare(providedHash, s.TokenHash) == 1
+	providedHash := utils.HashSHA256(token)
+	return utils.ConstantTimeCompare(providedHash, s.TokenHash) == 1
 }
 
 func (s *Session) VerifyPassword(password string) bool {
-	providedHash := HashSHA256(password)
-	return subtleConstantTimeCompare(providedHash, s.PasswordHash) == 1
+	providedHash := utils.HashSHA256(password)
+	return utils.ConstantTimeCompare(providedHash, s.PasswordHash) == 1
 }
 
 type MemoryStore struct {

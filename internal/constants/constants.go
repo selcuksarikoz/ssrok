@@ -93,6 +93,13 @@ const (
 	MinDiskSpaceRequired     = 500 * 1024 * 1024 // 500MB minimum free space
 	AuditBufferSize          = 100               // Buffer 100 logs before writing to disk
 	AuditFlushInterval       = 5 * time.Second   // Flush buffer every 5 seconds
+	StaticAssetLogThreshold  = 50                // Log static assets after this many requests
+	StaticAssetSampleRate    = 10                // Sample 1 in N static asset requests
+	PendingLogBufferSize     = 100               // Pending logs buffer for tunnel
+	MaxHeaderBytes           = 1 << 20           // 1MB max headers
+	ServerShutdownTimeout    = 5 * time.Second   // Graceful shutdown timeout
+	ReadHeaderTimeout        = 10 * time.Second  // Timeout for reading headers
+	ProtocolDetectionTimeout = 2 * time.Second   // Timeout for protocol detection
 )
 
 const (

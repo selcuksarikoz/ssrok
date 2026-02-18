@@ -4,14 +4,15 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"time"
+
+	"ssrok/internal/constants"
 )
 
 func DetectProtocol(host string, port int) bool {
 	target := fmt.Sprintf("%s:%d", host, port)
 
 	dialer := &net.Dialer{
-		Timeout: 2 * time.Second,
+		Timeout: constants.ProtocolDetectionTimeout,
 	}
 
 	conn, err := tls.DialWithDialer(dialer, "tcp", target, &tls.Config{
