@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/skip2/go-qrcode"
@@ -63,10 +61,8 @@ func StartTUI(t *tunnel.Tunnel, publicURL, magicURL, dashboardURL, expiresAt, du
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	winchChan := make(chan os.Signal, 1)
-	signal.Notify(winchChan, syscall.SIGWINCH)
+	winchChan := setupSignals(sigChan)
 
 	dashStatsChan := make(chan int64, 1)
 	go func() {
