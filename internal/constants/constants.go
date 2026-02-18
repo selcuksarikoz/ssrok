@@ -87,7 +87,12 @@ const (
 	RequestSampleRate        = 10               // Log 1 in every N requests for high-volume
 	RequestFloodingThreshold = 100              // Requests per minute to trigger flooding detection
 	HighVolumeWindow         = time.Minute
-	MaxAuditLogsPerMinute    = 1000 // Limit audit logs to prevent disk flooding
+	MaxAuditLogsPerMinute    = 1000              // Limit audit logs to prevent disk flooding
+	MaxAuditLogFileSize      = 100 * 1024 * 1024 // 100MB per log file
+	MaxAuditLogRetentionDays = 7                 // Keep logs for 7 days
+	MinDiskSpaceRequired     = 500 * 1024 * 1024 // 500MB minimum free space
+	AuditBufferSize          = 100               // Buffer 100 logs before writing to disk
+	AuditFlushInterval       = 5 * time.Second   // Flush buffer every 5 seconds
 )
 
 const (
