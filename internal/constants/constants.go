@@ -45,6 +45,7 @@ const (
 	CleanupInterval    = 30 * time.Second
 	StreamTypeProxy    = 0x00
 	StreamTypeLog      = 0x01
+	StreamTypeStats    = 0x02
 	WSCompression      = false
 )
 

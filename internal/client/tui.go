@@ -121,23 +121,27 @@ func RenderTUI(t *tunnel.Tunnel, publicURL, magicURL, qrStr, dashboardURL, expir
 	fmt.Print("\033[H")
 
 	fmt.Printf("  %s%sssrok%s %sv%s%s\n", constants.ColorBold, constants.ColorCyan, constants.ColorReset, constants.ColorBold, constants.Version, constants.ColorReset)
-	fmt.Printf("  %sSecure Ephemeral Reverse Proxy%s\n", constants.ColorDim, constants.ColorReset)
+	fmt.Printf("  %sSecure Ephemeral Reverse Proxy%s\n", constants.ColorDim, ColorReset)
 	fmt.Println()
 
 	bytesIn := atomic.LoadInt64(&t.BytesIn)
 	bytesOut := atomic.LoadInt64(&t.BytesOut)
 	totalReqs := atomic.LoadInt64(&t.TotalReqs)
 	activeConns := atomic.LoadInt64(&t.ActiveConns)
+	blocked := atomic.LoadInt64(&t.Blocked)
+	rateLimited := atomic.LoadInt64(&t.RateLimited)
 	if activeFromDash > activeConns {
 		activeConns = activeFromDash
 	}
 
-	fmt.Printf("  %sRecved: %s%10s%s   %sSent: %s%10s%s\n",
-		ColorDim, ColorReset, utils.FormatBytes(bytesIn), ColorReset,
-		ColorDim, ColorReset, utils.FormatBytes(bytesOut), ColorReset)
-	fmt.Printf("  %sReq:    %s%10d%s   %sActive: %s%8d%s\n",
-		ColorDim, ColorReset, totalReqs, ColorReset,
-		ColorDim, ColorReset, activeConns, ColorReset)
+	fmt.Printf("  %sRecved:%s %s%8s%s  %sSent:%s %s%8s%s  %sReq:%s %s%8d%s\n",
+		ColorDim, ColorReset, ColorBold, utils.FormatBytes(bytesIn), ColorReset,
+		ColorDim, ColorReset, ColorBold, utils.FormatBytes(bytesOut), ColorReset,
+		ColorDim, ColorReset, ColorBold, totalReqs, ColorReset)
+	fmt.Printf("  %sActive:%s %s%8d%s  %sBlocked:%s %s%8d%s  %sRateLimit:%s %s%8d%s\n",
+		ColorDim, ColorReset, ColorBold, activeConns, ColorReset,
+		ColorDim, ColorReset, ColorBold, blocked, ColorReset,
+		ColorDim, ColorReset, ColorBold, rateLimited, ColorReset)
 	fmt.Println()
 	PrintField("magic url", magicURL, ColorCyan)
 	PrintField("public url", publicURL, ColorYellow)

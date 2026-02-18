@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -38,6 +39,22 @@ func (t *Tunnel) handleStream(stream net.Conn) {
 				t.SecurityCallback(msgStr)
 			} else if t.LogCallback != nil {
 				t.LogCallback(msgStr)
+			}
+		}
+		return
+	}
+
+	if typeBuf[0] == constants.StreamTypeStats {
+		msg, _ := io.ReadAll(stream)
+		if len(msg) > 0 {
+			var stats map[string]int64
+			if json.Unmarshal(msg, &stats) == nil {
+				if v, ok := stats["blocked"]; ok {
+					atomic.StoreInt64(&t.Blocked, v)
+				}
+				if v, ok := stats["rate_limited"]; ok {
+					atomic.StoreInt64(&t.RateLimited, v)
+				}
 			}
 		}
 		return
@@ -368,4 +385,32 @@ func (t *Tunnel) sendLogMessage(message string) error {
 		return err
 	}
 	return nil
+}
+
+func (t *Tunnel) IncBlocked() {
+	atomic.AddInt64(&t.Blocked, 1)
+	t.SendStats()
+}
+
+func (t *Tunnel) IncRateLimited() {
+	atomic.AddInt64(&t.RateLimited, 1)
+	t.SendStats()
+}
+
+func (t *Tunnel) SendStats() {
+	stats := map[string]int64{
+		"blocked":      atomic.LoadInt64(&t.Blocked),
+		"rate_limited": atomic.LoadInt64(&t.RateLimited),
+	}
+	data, _ := json.Marshal(stats)
+	if t.Session == nil {
+		return
+	}
+	stream, err := t.Session.OpenStream()
+	if err != nil {
+		return
+	}
+	defer stream.Close()
+	stream.Write([]byte{constants.StreamTypeStats})
+	stream.Write(data)
 }

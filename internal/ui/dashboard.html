@@ -161,31 +161,11 @@
       </div>
     </aside>
   </main>
-  <div
-    id="securityEvents"
-    class="hidden fixed bottom-4 right-4 w-80 max-h-64 overflow-y-auto bg-gray-800 border border-red-500/50 rounded-lg shadow-xl"
-  >
-    <div
-      class="px-3 py-2 border-b border-red-500/30 flex justify-between items-center"
-    >
-      <span class="text-sm font-semibold text-red-400">Security Events</span>
-      <button
-        onclick="
-          document.getElementById('securityEvents').classList.add('hidden')
-        "
-        class="text-gray-400 hover:text-white"
-      >
-        &times;
-      </button>
-    </div>
-    <div id="securityEventsList" class="p-2 space-y-2"></div>
-  </div>
 </div>
 {{end}} {{define "scripts"}}
 <script>
   let ws;
   let logs = [];
-  let securityEvents = [];
   let selectedLog = null;
   let currentTab = "request";
 
@@ -199,15 +179,7 @@
     };
 
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      // Check if this is a security event
-      if (data.type === "security") {
-        securityEvents.push(data.data);
-        renderSecurityEvents();
-        return;
-      }
-      // Regular HTTP log
-      const log = data;
+      const log = JSON.parse(event.data);
       // Avoid duplicates on reconnect
       if (!logs.find((l) => l.id === log.id)) {
         logs.push(log);
@@ -221,30 +193,6 @@
         '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-sm text-gray-400">Disconnected</span>';
       setTimeout(connect, 3000);
     };
-  }
-
-  function renderSecurityEvents() {
-    const container = document.getElementById("securityEvents");
-    const list = document.getElementById("securityEventsList");
-    if (securityEvents.length === 0) {
-      container.classList.add("hidden");
-      return;
-    }
-    container.classList.remove("hidden");
-    list.innerHTML = securityEvents
-      .slice()
-      .reverse()
-      .map((evt) => {
-        const isAuth = evt.event_type === "AUTH";
-        const colorClass = isAuth ? "text-red-400" : "text-yellow-400";
-        const icon = isAuth ? "🔒" : "⛔";
-        return `<div class="text-xs ${colorClass}">
-        <span>${icon} ${evt.event_type}</span>
-        <span class="text-gray-400"> - ${evt.ip}</span>
-        <span class="text-gray-500 block">${new Date(evt.timestamp).toLocaleTimeString()}</span>
-      </div>`;
-      })
-      .join("");
   }
 
   function renderLogs() {

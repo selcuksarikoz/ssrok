@@ -33,6 +33,8 @@ type Tunnel struct {
 	BytesOut    int64 // atomic
 	TotalReqs   int64 // atomic
 	ActiveConns int64 // atomic
+	Blocked     int64 // atomic
+	RateLimited int64 // atomic
 }
 
 // NewTunnel creates a new tunnel instance

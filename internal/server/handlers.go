@@ -163,8 +163,6 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if s.AuditLogger != nil {
 			s.AuditLogger.LogAuthFailure(clientIP, tunnelUUID, "Invalid or missing token")
 		}
-
-		t.SendLog(utils.FormatLog("🔒", "AUTH", 401, clientIP))
 		conn.Close()
 		return
 	}
@@ -196,7 +194,10 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 		if s.AuditLogger != nil {
 			s.AuditLogger.LogBruteForce(clientIP, "", constants.MaxAuthAttempts)
 		}
-		http.Error(w, "Too many failed attempts. Try again later.", http.StatusTooManyRequests)
+		w.WriteHeader(http.StatusTooManyRequests)
+		s.Templates.Render(w, "ratelimit.html", map[string]interface{}{
+			"Title": "Too many failed attempts. Try again later.",
+		})
 		return
 	}
 
@@ -258,15 +259,15 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 	if !sess.CheckRateLimit(clientIP) {
 		s.Store.Save(sess)
 
-		if s.AuditLogger != nil {
-			s.AuditLogger.LogRateLimit(clientIP, tunnelUUID)
-		}
-
 		s.TunnelMu.RLock()
 		tLog, okLog := s.Tunnels[tunnelUUID]
 		s.TunnelMu.RUnlock()
 		if okLog {
-			tLog.SendLog(utils.FormatLog("⛔", "RATE", 429, clientIP))
+			tLog.IncRateLimited()
+		}
+
+		if s.AuditLogger != nil {
+			s.AuditLogger.LogRateLimit(clientIP, tunnelUUID)
 		}
 
 		log.Printf("⛔ Rate limit exceeded: %s", clientIP)
@@ -373,6 +374,7 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 			}
 			if okLog {
 				tLog.SendLog(utils.FormatLog("❌", "AUTH", 401, clientIP))
+				tLog.IncBlocked()
 			}
 			s.BruteProtector.RecordFailure(clientIP)
 			if s.AuditLogger != nil {
