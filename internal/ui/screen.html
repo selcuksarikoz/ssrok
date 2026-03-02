@@ -1,0 +1,9 @@
+{{define "content"}}
+<div class="fixed inset-0 w-full h-full bg-black z-50 flex justify-center items-center overflow-hidden">
+    <div class="absolute top-4 left-4 bg-black/60 text-white px-3 py-1.5 rounded-md text-sm z-60 font-medium flex items-center gap-2 backdrop-blur-sm border border-gray-800">
+        <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981] animate-pulse"></span>
+        ssrok Live Screen
+    </div>
+    <img src="{{.StreamURL}}" alt="Screen Stream" class="max-w-full max-h-full object-contain">
+</div>
+{{end}}

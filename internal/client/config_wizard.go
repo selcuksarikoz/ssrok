@@ -13,7 +13,7 @@ import (
 )
 
 // RunConfigWizard executes the interactive setup for the tunnel client
-func RunConfigWizard(targetHost string, targetPort int, useTLS bool) types.ConfigRequest {
+func RunConfigWizard(targetHost string, targetPort int, useTLS bool, isScreen bool) types.ConfigRequest {
 	reader := bufio.NewReader(os.Stdin)
 
 	PrintStep(1, "Local server configuration")

@@ -2,7 +2,7 @@
 
 **Secure, ephemeral reverse proxy tunnels for developers.**
 
-Expose your local development server to the internet with a secure, time-limited URL. Perfect for testing webhooks, sharing work-in-progress with clients, quick demos, or **developing APIs**. You can send requests to your local API endpoints directly using **curl**, **Postman**, or any other HTTP client via the public URL.
+Expose your local development server to the internet with a secure, time-limited URL, or **securely share your screen** straight from the terminal. Perfect for testing webhooks, sharing work-in-progress with clients, quick demos, or **developing APIs**. You can send requests to your local API endpoints directly using **curl**, **Postman**, or any other HTTP client via the public URL.
 
 > **Note:** A free public instance is available at [ssrok.onrender.com](https://ssrok.onrender.com). Please be aware that this runs on a free tier infrastructure, which may experience cold starts or resource limitations.
 
@@ -23,6 +23,12 @@ Expose your local development server to the internet with a secure, time-limited
 ## Quick Start
 
 ```bash
+# Share your screen securely (requires auth)
+ssrok screen
+
+# Screen share with custom quality (1-100) and framerate
+ssrok screen -fps 30 -quality 90
+
 # Expose localhost:3000
 ssrok 3000
 
@@ -153,6 +159,7 @@ Make sure to configure the Environment Variables (see below) to match your domai
 | --------------------- | -------------------------------------------- |
 | ⚡ **Fast**           | 128KB buffers, yamux multiplexing            |
 | 🔒 **E2E Encryption** | ChaCha20-Poly1305, server cannot see traffic |
+| 📺 **Screen Share**   | Secure, platform-independent screen sharing  |
 | 🔐 **Secure**         | Token auth, optional password                |
 | 🎫 **Magic Links**    | URLs with embedded tokens                    |
 | ⏱️ **Ephemeral**      | Auto-expire after 1 hour                     |
@@ -180,6 +187,17 @@ When you start a tunnel, a local dashboard is automatically available at `http:/
 The dashboard helps you debug API responses, inspect webhook payloads, and monitor traffic in real-time.
 
 > **Note:** The dashboard runs locally on your machine and is not accessible from the internet. It shows requests as they pass through your local client before encryption.
+
+### Troubleshooting
+
+**macOS "cannot capture display" error**
+
+If you are using macOS and see the `cannot capture display` error when running `ssrok screen`, you need to grant **Screen Recording** permissions to your terminal:
+
+1. Open **System Settings** -> **Privacy & Security** -> **Screen Recording**.
+2. Find your terminal application (e.g., Terminal, iTerm2, VSCode, Cursor) in the list and enable the switch.
+3. If it's not in the list, click the `+` button at the bottom and add your terminal app.
+4. **Quit & Reopen** your terminal for the changes to take effect.
 
 ## Security & Limitations
 
@@ -293,6 +311,16 @@ make dev-server     # Run server locally
 make test           # Run tests
 make release        # Release builds
 ```
+
+## Acknowledgements & Open Source Packages
+
+ssrok is built on top of these amazing open-source packages:
+
+- [kbinani/screenshot](https://github.com/kbinani/screenshot) - Cross-platform screen capture
+- [google/uuid](https://github.com/google/uuid) - UUID generation
+- [gorilla/websocket](https://github.com/gorilla/websocket) - WebSocket implementation
+- [hashicorp/yamux](https://github.com/hashicorp/yamux) - Connection multiplexing
+- [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea) & [lipgloss](https://github.com/charmbracelet/lipgloss) - TUI frameworks
 
 ## License
 

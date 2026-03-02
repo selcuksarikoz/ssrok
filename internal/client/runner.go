@@ -23,13 +23,14 @@ func stripANSI(s string) string {
 }
 
 // Start initializes the client, runs the wizard, and manages the tunnel lifecycle
-func Start(targetHost string, targetPort int, useTLS bool) {
+func Start(targetHost string, targetPort int, useTLS bool, isScreen bool) {
 	serverURL := utils.GetEnv("SSROK_SERVER", constants.DefaultServerURL)
 	serverURL, skipTLSVerify := utils.NormalizeServerURL(serverURL)
 
 	PrintBanner()
 
-	config := RunConfigWizard(targetHost, targetPort, useTLS)
+	config := RunConfigWizard(targetHost, targetPort, useTLS, isScreen)
+	config.Screen = isScreen
 
 	PrintSep()
 	PrintHint(ColorGreen + "🔒 E2EE Active (ChaCha20-Poly1305)" + ColorReset)

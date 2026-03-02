@@ -9,4 +9,5 @@ type ConfigRequest struct {
 	UseTLS    bool          `json:"use_tls"`
 	E2EE      bool          `json:"e2ee"`
 	ExpiresIn time.Duration `json:"expires_in,omitempty"`
+	Screen    bool          `json:"screen,omitempty"`
 }

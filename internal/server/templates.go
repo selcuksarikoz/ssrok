@@ -33,7 +33,7 @@ func loadTemplates() (map[string]*template.Template, error) {
 		return nil, err
 	}
 
-	pages := []string{"login.html", "ratelimit.html", "notfound.html", "home.html", "error.html", "disconnected.html"}
+	pages := []string{"login.html", "ratelimit.html", "notfound.html", "home.html", "error.html", "disconnected.html", "screen.html"}
 
 	for _, page := range pages {
 		pageContent, err := ui.Templates.ReadFile(page)

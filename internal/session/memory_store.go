@@ -20,6 +20,7 @@ type Session struct {
 	RateLimit         int
 	UseTLS            bool
 	E2EE              bool
+	Screen            bool
 	CreatedAt         time.Time
 	ExpiresAt         time.Time
 	Conn              *websocket.Conn

@@ -70,6 +70,7 @@ func (s *Server) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		RateLimit:    req.RateLimit,
 		UseTLS:       req.UseTLS,
 		E2EE:         req.E2EE,
+		Screen:       req.Screen,
 		CreatedAt:    time.Now(),
 		ExpiresAt:    time.Now().Add(sessionDuration),
 		RequestCount: make(map[string]int),
@@ -481,6 +482,18 @@ func (s *Server) HandleTunnel(w http.ResponseWriter, r *http.Request) {
 		} else {
 			targetPath = strings.TrimRight(targetPath, "/") + extraPath
 		}
+	}
+
+	if sess.Screen && (targetPath == "/" || targetPath == "/index.html") {
+		streamURL := "/stream"
+		if isPathUUID {
+			streamURL = "/" + tunnelUUID + "/stream"
+		}
+		s.Templates.Render(w, "screen.html", map[string]interface{}{
+			"Title":     "Live Screen",
+			"StreamURL": streamURL,
+		})
+		return
 	}
 
 	s.ProxyRequest(t, w, r, targetPath, sess)
