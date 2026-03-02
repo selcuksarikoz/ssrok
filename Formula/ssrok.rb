@@ -1,23 +1,23 @@
 class Ssrok < Formula
   desc "Blazing fast secure reverse proxy tunnel"
   homepage "https://github.com/selcuksarikoz/ssrok"
-  version "0.1.13"
+  version "0.2.0"
   
   if OS.mac?
     if Hardware::CPU.arm?
-      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.13/ssrok-darwin-arm64"
-      sha256 "e6c5b136021181aafa7158c913eb6397581b3ea923ccfb2ad2344fb8e5428ee3"
+      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.2.0/ssrok-darwin-arm64"
+      sha256 "b99d205603fa98b0a97f6f0ed0b5177e119c7ccf30a30b59570af0a341111ba6"
     else
-      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.13/ssrok-darwin-amd64"
-      sha256 "6f089a3f2cbd646fb2a88dd33190218d07221bf1d3ccbd659ac112665978e249"
+      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.2.0/ssrok-darwin-amd64"
+      sha256 "379ea139e01cfcb93377e865e457099ac6b0b1f1ad570687626d044e91ae5850"
     end
   elsif OS.linux?
     if Hardware::CPU.arm?
-      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.13/ssrok-linux-arm64"
-      sha256 "0572ec7364aa5c6c832c5bbb9324b40472607eab8338f8579de02f3b859daf8f"
+      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.2.0/ssrok-linux-arm64"
+      sha256 "593d37824b67f6acb93620418e9e6f5dcaa2c0015486ba44ea711deab7233bfb"
     else
-      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.1.13/ssrok-linux-amd64"
-      sha256 "f04781a21db323432ccc0eb670cdad4d3a0870051eb257563d5d0a0d12af4e7d"
+      url "https://github.com/selcuksarikoz/ssrok/releases/download/v0.2.0/ssrok-linux-amd64"
+      sha256 "b1525993fb4e22ad3f9546bbc59c63a5017bd1dfa424ab5566790559da89a09e"
     end
   end
 

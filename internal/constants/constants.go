@@ -27,7 +27,7 @@ var (
 	DefaultServerURL = "http://localhost"
 
 	// Version can be overwritten at build time using -ldflags
-	Version = "0.1.13"
+	Version = "0.2.0"
 
 	// VersionCheckURL is the URL to check for updates
 	VersionCheckURL = "https://raw.githubusercontent.com/selcuksarikoz/ssrok/main/version.json"
