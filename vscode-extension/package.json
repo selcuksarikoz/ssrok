@@ -75,7 +75,7 @@
     "build-config": "node scripts/build-config.js",
     "compile": "npm run build-config && tsc -p ./",
     "build": "npm run compile",
-    "package": "npm run build && vsce package -o ssrok-package.vsix"
+    "package": "npm run build && vsce package"
   },
   "devDependencies": {
     "@types/vscode": "^1.109.0",
