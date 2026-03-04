@@ -271,6 +271,42 @@ function createWebviewContent(activePorts: number[], currentPort?: number): stri
 		const status = document.getElementById('status');
 		const errorDiv = document.getElementById('error');
 		const loadingDiv = document.getElementById('loading');
+		const passwordInput = document.getElementById('password');
+		const rateLimitInput = document.getElementById('rateLimit');
+		const e2eeCheckbox = document.getElementById('e2ee');
+		
+		const savedState = vscode.getState();
+		if (savedState) {
+			if (savedState.port) portSelect.value = savedState.port;
+			if (savedState.customPort) customPort.value = savedState.customPort;
+			if (savedState.password) passwordInput.value = savedState.password;
+			if (savedState.rateLimit) rateLimitInput.value = savedState.rateLimit;
+			if (savedState.e2ee !== undefined) e2eeCheckbox.checked = savedState.e2ee;
+			if (portSelect.value === 'custom') {
+				customPort.style.display = 'block';
+			}
+		}
+		
+		// Save state on changes
+		function saveState() {
+			const currentState = vscode.getState() || {};
+			vscode.setState({
+				...currentState,
+				port: portSelect.value,
+				customPort: customPort.value,
+				password: passwordInput.value,
+				rateLimit: rateLimitInput.value,
+				e2ee: e2eeCheckbox.checked,
+				scrollTop: window.scrollY
+			});
+		}
+		
+		portSelect.addEventListener('change', saveState);
+		customPort.addEventListener('input', saveState);
+		passwordInput.addEventListener('input', saveState);
+		rateLimitInput.addEventListener('input', saveState);
+		e2eeCheckbox.addEventListener('change', saveState);
+		window.addEventListener('scroll', saveState);
 		
 		portSelect.addEventListener('change', () => {
 			if (portSelect.value === 'custom') {
@@ -382,43 +418,78 @@ function createWebviewContent(activePorts: number[], currentPort?: number): stri
 			}
 		}
 		
+		function showConnectedState(publicUrl, magicUrl, expiresIn) {
+			loadingDiv.style.display = 'none';
+			connectBtn.style.display = 'none';
+			disconnectBtn.style.display = 'inline-block';
+			formContainer.style.display = 'none';
+			status.style.display = 'block';
+			status.className = 'status connected';
+			
+			const publicUrlEl = document.getElementById('publicUrl');
+			publicUrlEl.textContent = publicUrl;
+			publicUrlEl.href = publicUrl;
+			
+			const magicUrlEl = document.getElementById('magicUrl');
+			magicUrlEl.textContent = magicUrl;
+			magicUrlEl.href = magicUrl;
+			
+			document.getElementById('statusExpiry').textContent = expiresIn;
+			
+			const canvas = document.getElementById('qrCanvas');
+			generateQR(magicUrl, canvas);
+		}
+		
+		function showDisconnectedState() {
+			loadingDiv.style.display = 'none';
+			connectBtn.style.display = 'inline-block';
+			disconnectBtn.style.display = 'none';
+			formContainer.style.display = 'block';
+			status.style.display = 'none';
+			errorDiv.textContent = '';
+			const canvas = document.getElementById('qrCanvas');
+			const ctx = canvas.getContext('2d');
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+		}
+		
+		// Restore state on load
+		if (savedState && savedState.isConnected) {
+			showConnectedState(savedState.publicUrl, savedState.magicUrl, savedState.expiresIn);
+		}
+		
+		// Restore scroll position
+		if (savedState && savedState.scrollTop) {
+			window.scrollTo(0, savedState.scrollTop);
+		}
+		
 		window.addEventListener('message', (event) => {
 			const message = event.data;
 			
 			if (message.type === 'connected') {
-				loadingDiv.style.display = 'none';
-				connectBtn.style.display = 'none';
-				disconnectBtn.style.display = 'inline-block';
-				formContainer.style.display = 'none';
-				status.style.display = 'block';
-				status.className = 'status connected';
-				
 				const publicUrl = message.url.replace(':8080', '');
 				const magicUrl = publicUrl + '?token=' + message.token;
 				
-				const publicUrlEl = document.getElementById('publicUrl');
-				publicUrlEl.textContent = publicUrl;
-				publicUrlEl.href = publicUrl;
+				showConnectedState(publicUrl, magicUrl, message.expiresIn);
 				
-				const magicUrlEl = document.getElementById('magicUrl');
-				magicUrlEl.textContent = magicUrl;
-				magicUrlEl.href = magicUrl;
-				
-				document.getElementById('statusExpiry').textContent = message.expiresIn;
-				
-				// Generate QR code
-				const canvas = document.getElementById('qrCanvas');
-				generateQR(magicUrl, canvas);
+				// Save connection state
+				vscode.setState({
+					isConnected: true,
+					publicUrl: publicUrl,
+					magicUrl: magicUrl,
+					expiresIn: message.expiresIn
+				});
 			} else if (message.type === 'disconnected') {
-				loadingDiv.style.display = 'none';
-				connectBtn.style.display = 'inline-block';
-				disconnectBtn.style.display = 'none';
-				formContainer.style.display = 'block';
-				status.style.display = 'none';
-				errorDiv.textContent = '';
-				const canvas = document.getElementById('qrCanvas');
-				const ctx = canvas.getContext('2d');
-				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				showDisconnectedState();
+				// Clear connection state
+				vscode.setState({
+					isConnected: false,
+					port: portSelect.value,
+					customPort: customPort.value,
+					password: passwordInput.value,
+					rateLimit: rateLimitInput.value,
+					e2ee: e2eeCheckbox.checked,
+					scrollTop: window.scrollY
+				});
 			} else if (message.type === 'error') {
 				loadingDiv.style.display = 'none';
 				connectBtn.style.display = 'inline-block';
@@ -435,7 +506,6 @@ async function showTunnelPanel() {
 	
 	if (currentPanel) {
 		currentPanel.reveal();
-		currentPanel.webview.html = createWebviewContent(activePorts);
 		return;
 	}
 	
