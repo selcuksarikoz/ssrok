@@ -1,0 +1,85 @@
+{
+  "name": "ssrok",
+  "displayName": "SSrok - Reverse Tunnel",
+  "icon": "logo.png",
+  "description": "Expose localhost to internet instantly. Secure tunnel for webhooks, API testing & dev servers. Free alternative to ngrok, built-in QR codes, E2E encryption.",
+  "version": "0.1.0",
+  "publisher": "ssrok",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/selcuksarikoz/ssrok"
+  },
+  "homepage": "https://kuulto.app/ssrok",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "tunnel",
+    "localhost",
+    "ngrok alternative",
+    "expose localhost",
+    "webhook testing",
+    "api testing",
+    "dev server",
+    "reverse proxy",
+    "port forwarding",
+    "share localhost",
+    "local development",
+    "temporary url",
+    "public url",
+    "secure tunnel",
+    "qr code tunnel"
+  ],
+  "activationEvents": [
+    "onCommand:ssrok.start"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ssrok.start",
+        "title": "SSrok: Start Tunnel"
+      },
+      {
+        "command": "ssrok.stop",
+        "title": "SSrok: Stop Tunnel"
+      }
+    ],
+    "configuration": {
+      "title": "SSrok",
+      "properties": {
+        "ssrok.defaultPort": {
+          "type": "number",
+          "default": 3000,
+          "description": "Default port to tunnel"
+        },
+        "ssrok.e2ee": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable end-to-end encryption"
+        },
+        "ssrok.rateLimit": {
+          "type": "number",
+          "default": 0,
+          "description": "Rate limit (requests per minute, 0 = unlimited)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "build-config": "node scripts/build-config.js",
+    "compile": "npm run build-config && tsc -p ./",
+    "build": "npm run compile",
+    "package": "npm run build && vsce package -o ssrok-package.vsix"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.109.0",
+    "@types/node": "22.x",
+    "typescript": "^5.9.3"
+  }
+}
